@@ -7,7 +7,10 @@ setup(name='pipelinewise-tap-kafka',
       description='Singer.io tap for extracting data from Kafka topic - PipelineWise compatible',
       author='Stitch',
       url='https://singer.io',
-      classifiers=['Programming Language :: Python :: 3 :: Only'],
+      classifiers=[
+          'License :: OSI Approved :: GNU Affero General Public License v3',
+          'Programming Language :: Python :: 3 :: Only'
+      ],
       install_requires=[
           'kafka-python',
           'singer-python==5.2.0',
