@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='pipelinewise-tap-kafka',
-      version='1.0.0',
+      version='1.0.1',
       description='Singer.io tap for extracting data from Kafka topic - PipelineWise compatible',
       author='Stitch',
       url='https://singer.io',
