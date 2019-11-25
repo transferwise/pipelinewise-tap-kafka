@@ -62,7 +62,7 @@ def sync_stream(kafka_config, stream, state):
                              enable_auto_commit=False,
                              consumer_timeout_ms=kafka_config.get('consumer_timeout_ms', 10000),
                              auto_offset_reset='earliest',
-                             value_deserializer=lambda m: json.loads(m.decode('ascii')),
+                             value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])),
                              bootstrap_servers=kafka_config['bootstrap_servers'])
 
     send_schema_message(stream)

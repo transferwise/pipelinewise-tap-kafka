@@ -30,6 +30,7 @@ def do_discovery(config):
                                  consumer_timeout_ms=config.get('consumer_timeout_ms', 10000),
                                  #value_deserializer=lambda m: json.loads(m.decode('ascii'))
                                  bootstrap_servers=config['bootstrap_servers'].split(','))
+
     except Exception as ex:
         LOGGER.warn("Unable to connect to kafka. bootstrap_servers: %s, topic: %s, group_id: %s", config['bootstrap_servers'].split(','), config['topic'], config['group_id'])
         LOGGER.warn(ex)
@@ -49,7 +50,9 @@ def main_impl():
     kafka_config = {'topic' : args.config['topic'],
                     'group_id' : args.config['group_id'],
                     'reject_topic': args.config.get('reject_topic'),
-                    'bootstrap_servers': args.config['bootstrap_servers'].split(',')}
+                    'bootstrap_servers': args.config['bootstrap_servers'].split(','),
+                    'encoding': args.config['encoding']
+                    }
 
     if args.discover:
         do_discovery(args.config)
