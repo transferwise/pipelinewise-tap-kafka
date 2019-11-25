@@ -51,7 +51,7 @@ def main_impl():
                     'group_id' : args.config['group_id'],
                     'reject_topic': args.config.get('reject_topic'),
                     'bootstrap_servers': args.config['bootstrap_servers'].split(','),
-                    'encoding': args.config['encoding']
+                    'encoding': args.config.get('encoding', 'utf-8')
                     }
 
     if args.discover:
