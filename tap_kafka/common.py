@@ -1,19 +1,33 @@
-import json
 from singer import metadata
-import pdb
 
-def default_streams(kafka_config):
-    if 'schema' in kafka_config and kafka_config['schema']:
-        schema = json.loads(kafka_config['schema'])
-    else:
-        schema = {}
 
+def generate_schema(primary_keys) -> object:
+    # Static items in every message
+    schema = {
+        "type": "object",
+        "properties": {
+            "message_timestamp": {"type": ["string", "null"], "format": "date-time"},
+            "message": {"type": ["object", "array", "string", "null"]}
+        }
+    }
+
+    # Primary keys are dynamic schema items
+    for pk in primary_keys:
+        schema["properties"][pk] = {"type": ["string", "null"]}
+
+    return schema
+
+
+def generate_catalog(kafka_config) -> list:
+    pks = []
     if 'primary_keys' in kafka_config and kafka_config['primary_keys']:
-        pks = json.loads(kafka_config['primary_keys'])
-    else:
-        pks = []
+        pk_config = kafka_config.get('primary_keys', [])
+        if isinstance(pk_config, object):
+            pks = list(pk_config.keys())
 
+    # Add primary keys to schema
     mdata = {}
     metadata.write(mdata, (), 'table-key-properties', pks)
+    schema = generate_schema(pks)
 
     return [{'tap_stream_id': kafka_config['topic'], 'metadata' : metadata.to_list(mdata), 'schema' : schema}]

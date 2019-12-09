@@ -14,11 +14,15 @@ setup(name='pipelinewise-tap-kafka',
       install_requires=[
           'kafka-python',
           'singer-python==5.2.0',
-          'requests==2.20.0',
-	      'strict-rfc3339==0.7',
-	      'nose==1.3.7',
-          'jsonschema==2.6.0',
+          'jsonpath_ng==1.4.3'
       ],
+      extras_require={
+          "test": [
+              "pytest==5.0.1",
+              "nose==1.3.7",
+              "pylint==2.4.2"
+          ]
+      },
       entry_points='''
           [console_scripts]
           tap-kafka=tap_kafka:main
