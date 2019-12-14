@@ -13,7 +13,7 @@ from tests.helper.kafkaconsumermock import KafkaConsumerMock
 def _message_to_singer_record(message):
     return {
         'message': message.get('value'),
-        'message_timestamp': None
+        'message_timestamp': message.get('timestamp')
     }
 
 
@@ -63,7 +63,7 @@ class TestSync(object):
             {
                 "type": "object",
                 "properties": {
-                    "message_timestamp": {"type": ["string", "null"], "format": "date-time"},
+                    "message_timestamp": {"type": ["integer", "string", "null"]},
                     "message": {"type": ["object", "array", "string", "null"]}
                 }
             }
@@ -75,7 +75,7 @@ class TestSync(object):
                 "type": "object",
                 "properties": {
                     "id": {"type": ["string", "null"]},
-                    "message_timestamp": {"type": ["string", "null"], "format": "date-time"},
+                    "message_timestamp": {"type": ["integer", "string", "null"]},
                     "message": {"type": ["object", "array", "string", "null"]}
                 }
             }
@@ -88,7 +88,7 @@ class TestSync(object):
                 "properties": {
                     "id": {"type": ["string", "null"]},
                     "version": {"type": ["string", "null"]},
-                    "message_timestamp": {"type": ["string", "null"], "format": "date-time"},
+                    "message_timestamp": {"type": ["integer", "string", "null"]},
                     "message": {"type": ["object", "array", "string", "null"]}
                 }
             }
@@ -107,8 +107,8 @@ class TestSync(object):
                        "schema": {
                            "type": "object",
                            "properties": {
-                               "message_timestamp": {"type": ["string", "null"], "format": "date-time"},
-                               "message": {"type": ["object", "array", "string", "null"]}
+                                "message_timestamp": {"type": ["integer", "string", "null"]},
+                                "message": {"type": ["object", "array", "string", "null"]}
                            }
                        },
                        "tap_stream_id": "dummy_topic"
@@ -130,8 +130,8 @@ class TestSync(object):
                            "type": "object",
                            "properties": {
                                 "id": {"type": ["string", "null"]},
-                               "message_timestamp": {"type": ["string", "null"], "format": "date-time"},
-                               "message": {"type": ["object", "array", "string", "null"]}
+                                "message_timestamp": {"type": ["integer", "string", "null"]},
+                                "message": {"type": ["object", "array", "string", "null"]}
                            }
                        },
                        "tap_stream_id": "dummy_topic"
@@ -154,8 +154,8 @@ class TestSync(object):
                            "properties": {
                                 "id": {"type": ["string", "null"]},
                                 "version": {"type": ["string", "null"]},
-                               "message_timestamp": {"type": ["string", "null"], "format": "date-time"},
-                               "message": {"type": ["object", "array", "string", "null"]}
+                                "message_timestamp": {"type": ["integer", "string", "null"]},
+                                "message": {"type": ["object", "array", "string", "null"]}
                            }
                        },
                        "tap_stream_id": "dummy_topic"
@@ -175,7 +175,7 @@ class TestSync(object):
                            "type": "object",
                            "properties": {
                                 "id": {"type": ["string", "null"]},
-                                "message_timestamp": {"type": ["string", "null"], "format": "date-time"},
+                                "message_timestamp": {"type": ["integer", "string", "null"]},
                                 "message": {"type": ["object", "array", "string", "null"]}
                            }
                        },

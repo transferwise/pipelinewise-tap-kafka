@@ -65,18 +65,10 @@ def sync_stream(kafka_config, stream, state, consumer):
                                                    message.offset, message.key,
                                                    message.value))
 
-        # Extract message timestamp from the message
-        message_timestamp = None
-        message_timestamp_selector = kafka_config.get("message_timestamp")
-        if message_timestamp_selector:
-            match = parse(message_timestamp_selector).find(message.value)
-            if isinstance(match, list):
-                message_timestamp = match[0].value
-
         # Create record message with columns
         rec = {
             "message": message.value,
-            "message_timestamp": message_timestamp
+            "message_timestamp": message.timestamp
         }
 
         # Add primary keys to the record message
@@ -88,8 +80,9 @@ def sync_stream(kafka_config, stream, state, consumer):
                 rec[pk] = match[0].value
 
         record = singer.RecordMessage(stream=stream['tap_stream_id'], record=rec, time_extracted=time_extracted)
-        singer.write_message(record)
+        rows_saved += 1
 
+        singer.write_message(record)
         state = singer.write_bookmark(state,
                                       stream['tap_stream_id'],
                                       'offset',

@@ -12,7 +12,6 @@ REQUIRED_CONFIG_KEYS = [
     'group_id',
     'bootstrap_servers',
     'topic'
-    # 'message_timestamp',
     # 'primary_keys'
 ]
 
@@ -49,7 +48,6 @@ def main_impl():
                     'group_id' : args.config['group_id'],
                     'bootstrap_servers': args.config['bootstrap_servers'].split(','),
                     'encoding': args.config.get('encoding', 'utf-8'),
-                    'message_timestamp': args.config.get('message_timestamp'),
                     'primary_keys': args.config.get('primary_keys', {})
                     }
 

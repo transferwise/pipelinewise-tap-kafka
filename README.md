@@ -45,7 +45,6 @@ or
   "group_id": "1",
   "bootstrap_servers": "foo.com,bar.com",
   "topic": "messages",
-  "message_timestamp": "$.jsonpath.to.timestamp",
   "primary_keys": {
     "id": "$.jsonpath.to.primary_key"
   }
@@ -57,11 +56,8 @@ This tap reads Kafka messages and generating singer compatible SCHEMA and RECORD
 | Property Name               | Description                                                                         |
 |-----------------------------|-------------------------------------------------------------------------------------|
 | MESSAGE                     | The original Kafka message                                                          |
-| MESSAGE_TIMESTAMP           | (Optional) A timestamp value extracted from the Kafka message.                      |
 | DYNAMIC_PRIMARY_KEY(S)      | (Optional) Dynamically added primary key values, extracted from the Kafka message   |
 
-
-`message_timestamp` and `primary_keys` are optional entries in the config.
  
 ### Run the tap in Discovery Mode
 

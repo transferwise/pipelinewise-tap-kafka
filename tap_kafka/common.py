@@ -6,7 +6,7 @@ def generate_schema(primary_keys) -> object:
     schema = {
         "type": "object",
         "properties": {
-            "message_timestamp": {"type": ["string", "null"], "format": "date-time"},
+            "message_timestamp": {"type": ["integer", "string", "null"]},
             "message": {"type": ["object", "array", "string", "null"]}
         }
     }
