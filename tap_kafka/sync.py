@@ -30,19 +30,20 @@ def send_schema_message(stream):
 
 
 def do_sync(kafka_config, catalog, state):
+    consumer = KafkaConsumer(
+        kafka_config['topic'],
+        group_id=kafka_config['group_id'],
+        enable_auto_commit=False,
+        consumer_timeout_ms=kafka_config.get('consumer_timeout_ms', 10000),
+        auto_offset_reset='earliest',
+        value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])),
+        bootstrap_servers=kafka_config['bootstrap_servers'])
+
     for stream in catalog['streams']:
-        sync_stream(kafka_config, stream, state)
+        sync_stream(kafka_config, stream, state, consumer)
 
 
-def sync_stream(kafka_config, stream, state):
-    consumer = KafkaConsumer(kafka_config['topic'],
-                             group_id=kafka_config['group_id'],
-                             enable_auto_commit=False,
-                             consumer_timeout_ms=kafka_config.get('consumer_timeout_ms', 10000),
-                             auto_offset_reset='earliest',
-                             value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])),
-                             bootstrap_servers=kafka_config['bootstrap_servers'])
-
+def sync_stream(kafka_config, stream, state, consumer):
     send_schema_message(stream)
     stream_version = singer.get_bookmark(state, stream['tap_stream_id'], 'version')
     if stream_version is None:
