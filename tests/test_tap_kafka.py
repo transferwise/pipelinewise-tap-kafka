@@ -184,16 +184,16 @@ class TestSync(object):
 
         fake_messages = [
             {
-                'offset': 99,
+                'offset': 1,
                 'timestamp': 1575895711187,
                 'value': {'result': 'SUCCESS',
-                          'documentFile': {'id': '11453862', 'type': 'ID_CARD', 'side': 'BACK', 'profileId': 5461610}}
+                          'details': {'id': '1001', 'type': 'TYPE_1', 'profileId': 1234}}
             },
             {
-                'offset': 99,
+                'offset': 2,
                 'timestamp': 1575895711187,
                 'value': {'result': 'SUCCESS',
-                          'documentFile': {'id': '11453862', 'type': 'ID_CARD', 'side': 'BACK', 'profileId': 5461610}},
+                          'details': {'id': '1002', 'type': 'TYPE_2', 'profileId': 1235}},
             }
         ]
 
