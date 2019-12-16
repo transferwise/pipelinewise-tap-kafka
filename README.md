@@ -14,7 +14,7 @@ The recommended method of running this tap is to use it from [PipelineWise](http
 
 If you want to run this [Singer Tap](https://singer.io) independently please read further.
 
-### Install and Run
+## Install and Run
 
 First, make sure Python 3 is installed on your system or follow these
 installation instructions for [Mac](http://docs.python-guide.org/en/latest/starting/install3/osx/) or
@@ -38,29 +38,35 @@ or
 
 ### Configuration
 
-## Create a config.json
+### Create a config.json
 
 ```
 {
   "group_id": "1",
   "bootstrap_servers": "foo.com,bar.com",
   "topic": "messages",
-  "reject_topic": "reject_topic",
-  "schema": "<json schema>"
+  "primary_keys": {
+    "id": "$.jsonpath.to.primary_key"
+  }
 }
 ```
 
-This tap's config requires a "schema" key which is a JSON document of JSON Schema formatted as a string. This document will be
-loaded by the tap using `json.loads`. The schema describes the structure of the Kafka messages that are consumed off the topic.
+This tap reads Kafka messages and generating singer compatible SCHEMA and RECORD messages in the following format.
 
-## Run the tap in Discovery Mode
+| Property Name               | Description                                                                         |
+|-----------------------------|-------------------------------------------------------------------------------------|
+| MESSAGE                     | The original Kafka message                                                          |
+| DYNAMIC_PRIMARY_KEY(S)      | (Optional) Dynamically added primary key values, extracted from the Kafka message   |
+
+ 
+### Run the tap in Discovery Mode
 
 ```
 tap-kafka --config config.json --discover                # Should dump a Catalog to sdtout
 tap-kafka --config config.json --discover > catalog.json # Capture the Catalog
 ```
 
-## Add Metadata to the Catalog
+### Add Metadata to the Catalog
 
 Each entry under the Catalog's "stream" key will need the following metadata:
 
@@ -80,7 +86,7 @@ Each entry under the Catalog's "stream" key will need the following metadata:
 }
 ```
 
-## Run the tap in Sync Mode
+### Run the tap in Sync Mode
 
 ```
 tap-kafka --config config.json --properties catalog.json
@@ -88,3 +94,28 @@ tap-kafka --config config.json --properties catalog.json
 
 The tap will write bookmarks to stdout which can be captured and passed as an optional `--state state.json` parameter to the tap for the next sync.
 
+## To run tests:
+
+1. Install python test dependencies in a virtual env and run nose unit and integration tests
+```
+  python3 -m venv venv
+  . venv/bin/activate
+  pip install --upgrade pip
+  pip install .[test]
+```
+
+2. To run tests:
+```
+  pytest tests
+```
+
+## To run pylint:
+
+1. Install python dependencies and run python linter
+```
+  python3 -m venv venv
+  . venv/bin/activate
+  pip install --upgrade pip
+  pip install .[test]
+  pylint tap_kafka -d C,W,unexpected-keyword-arg,duplicate-code
+```

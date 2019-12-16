@@ -1,20 +1,21 @@
 import singer
 from singer import utils, metadata
-from kafka import KafkaConsumer, KafkaProducer, OffsetAndMetadata, TopicPartition
-import pdb
+from kafka import KafkaConsumer, OffsetAndMetadata, TopicPartition
 import sys
 import json
+from jsonpath_ng import jsonpath, parse
 import time
 import copy
 import tap_kafka.common as common
-from jsonschema import ValidationError, Draft4Validator, FormatChecker
 
 LOGGER = singer.get_logger()
-UPDATE_BOOKMARK_PERIOD = 1000
+UPDATE_BOOKMARK_PERIOD = 10000
+
 
 def write_schema_message(schema_message):
     sys.stdout.write(json.dumps(schema_message) + '\n')
     sys.stdout.flush()
+
 
 def send_schema_message(stream):
     md_map = metadata.to_map(stream['metadata'])
@@ -29,42 +30,20 @@ def send_schema_message(stream):
 
 
 def do_sync(kafka_config, catalog, state):
+    consumer = KafkaConsumer(
+        kafka_config['topic'],
+        group_id=kafka_config['group_id'],
+        enable_auto_commit=False,
+        consumer_timeout_ms=kafka_config.get('consumer_timeout_ms', 10000),
+        auto_offset_reset='earliest',
+        value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])),
+        bootstrap_servers=kafka_config['bootstrap_servers'])
+
     for stream in catalog['streams']:
-        sync_stream(kafka_config, stream, state)
+        sync_stream(kafka_config, stream, state, consumer)
 
 
-def validate_record(schema, message):
-    validator = Draft4Validator(schema, format_checker=FormatChecker())
-    try:
-        validator.validate(message.record)
-        return [True, None]
-    except Exception as ex:
-        return [False, ex.message]
-
-
-def send_reject_message(kafka_config, message, reject_reason):
-    producer = KafkaProducer(bootstrap_servers=kafka_config['bootstrap_servers'],
-                             value_serializer=lambda v: json.dumps(v).encode('utf-8'))
-
-
-
-    message.record['stitch_error'] = reject_reason
-    future = producer.send(kafka_config['reject_topic'], message.record)
-    try:
-        record_metadata = future.get(timeout=10)
-    except KafkaError as ex:
-        LOGGER.critical(ex)
-        raise ex
-
-def sync_stream(kafka_config, stream, state):
-    consumer = KafkaConsumer(kafka_config['topic'],
-                             group_id=kafka_config['group_id'],
-                             enable_auto_commit=False,
-                             consumer_timeout_ms=kafka_config.get('consumer_timeout_ms', 10000),
-                             auto_offset_reset='earliest',
-                             value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])),
-                             bootstrap_servers=kafka_config['bootstrap_servers'])
-
+def sync_stream(kafka_config, stream, state, consumer):
     send_schema_message(stream)
     stream_version = singer.get_bookmark(state, stream['tap_stream_id'], 'version')
     if stream_version is None:
@@ -85,19 +64,25 @@ def sync_stream(kafka_config, stream, state):
         LOGGER.debug("%s:%s:%s: key=%s value=%s" % (message.topic, message.partition,
                                                    message.offset, message.key,
                                                    message.value))
-        # stream['schema']
-        record = singer.RecordMessage(stream=stream['tap_stream_id'], record=message.value, time_extracted=time_extracted)
 
-        [valid, error] = validate_record(stream['schema'], record)
-        rows_saved = rows_saved + 1
+        # Create record message with columns
+        rec = {
+            "message": message.value,
+            "message_timestamp": message.timestamp
+        }
 
-        if valid:
-            singer.write_message(record)
-        elif kafka_config.get('reject_topic'):
-            send_reject_message(kafka_config, record, error)
-        else:
-            raise Exception("record failed validation and no reject_topic was specified. ERROR: {}".format(error))
+        # Add primary keys to the record message
+        pks =  kafka_config.get("primary_keys", [])
+        for pk in pks:
+            pk_selector = pks[pk]
+            match = parse(pk_selector).find(message.value)
+            if match:
+                rec[pk] = match[0].value
 
+        record = singer.RecordMessage(stream=stream['tap_stream_id'], record=rec, time_extracted=time_extracted)
+        rows_saved += 1
+
+        singer.write_message(record)
         state = singer.write_bookmark(state,
                                       stream['tap_stream_id'],
                                       'offset',

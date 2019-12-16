@@ -2,7 +2,6 @@ import singer
 from singer import utils
 from kafka import KafkaConsumer
 import json
-import pdb
 import sys
 import tap_kafka.sync as sync
 import tap_kafka.common as common
@@ -13,9 +12,7 @@ REQUIRED_CONFIG_KEYS = [
     'group_id',
     'bootstrap_servers',
     'topic'
-    # 'schema',
-    # 'primary_keys',
-    # 'message_serialization'
+    # 'primary_keys'
 ]
 
 def dump_catalog(all_streams):
@@ -40,7 +37,7 @@ def do_discovery(config):
         LOGGER.warn("Unable to view topic %s. bootstrap_servers: %s, topic: %s, group_id: %s", config['topic'], config['bootstrap_servers'].split(','), config['topic'], config['group_id'])
         raise Exception('Unable to view topic {}'.format(config['topic']))
 
-    dump_catalog(common.default_streams(config))
+    dump_catalog(common.generate_catalog(config))
 
 
 
@@ -49,9 +46,9 @@ def main_impl():
 
     kafka_config = {'topic' : args.config['topic'],
                     'group_id' : args.config['group_id'],
-                    'reject_topic': args.config.get('reject_topic'),
                     'bootstrap_servers': args.config['bootstrap_servers'].split(','),
-                    'encoding': args.config.get('encoding', 'utf-8')
+                    'encoding': args.config.get('encoding', 'utf-8'),
+                    'primary_keys': args.config.get('primary_keys', {})
                     }
 
     if args.discover:
