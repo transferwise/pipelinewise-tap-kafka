@@ -10,7 +10,7 @@ from kafka import KafkaConsumer, OffsetAndMetadata, TopicPartition
 from jsonpath_ng import parse
 
 
-LOGGER = singer.get_logger()
+LOGGER = singer.get_logger('tap_kafka')
 UPDATE_BOOKMARK_PERIOD = 10000
 
 

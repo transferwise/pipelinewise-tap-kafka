@@ -17,12 +17,12 @@ jobs:
           name: 'Pylinting'
           command: |
             . venv/bin/activate
-            pip install .[test]
             pylint tap_kafka -d C,W,unexpected-keyword-arg,duplicate-code
       - run:
           name: 'Unit Tests'
           command: |
             . venv/bin/activate
+            export LOGGING_CONF_FILE=$(pwd)/sample_logging.conf
             pytest tests/
 
 workflows:

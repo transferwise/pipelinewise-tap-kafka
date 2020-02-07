@@ -9,7 +9,7 @@ from kafka import KafkaConsumer
 import tap_kafka.sync as sync
 import tap_kafka.common as common
 
-LOGGER = singer.get_logger()
+LOGGER = singer.get_logger('tap_kafka')
 
 REQUIRED_CONFIG_KEYS = [
     'group_id',
