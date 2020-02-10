@@ -13,7 +13,7 @@ setup(name='pipelinewise-tap-kafka',
       ],
       install_requires=[
           'kafka-python',
-          'singer-python==5.2.0',
+          'pipelinewise-singer-python==1.*',
           'jsonpath_ng==1.4.3'
       ],
       extras_require={
