@@ -2,10 +2,15 @@
 
 from setuptools import setup
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(name='pipelinewise-tap-kafka',
-      version='2.0.0',
+      version='2.1.0',
       description='Singer.io tap for extracting data from Kafka topic - PipelineWise compatible',
-      author='Stitch',
+      long_description=long_description,
+      long_description_content_type='text/markdown',
+      author='TransferWise',
       url='https://singer.io',
       classifiers=[
           'License :: OSI Approved :: GNU Affero General Public License v3',
