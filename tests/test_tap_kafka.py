@@ -54,13 +54,6 @@ def _check_everything_delivered(stdout, topic, fake_messages):
     assert len(singer_records) == 0
 
 
-class ArgsMock(unittest.TestCase):
-    """
-    Integration Tests
-    """
-    maxDiff = None
-
-
 class TestSync(object):
     """
     Unit Tests
