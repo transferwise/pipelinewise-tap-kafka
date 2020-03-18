@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import copy
+import datetime
 
 import singer
 from singer import utils, metadata
@@ -12,6 +13,7 @@ from jsonpath_ng import parse
 
 LOGGER = singer.get_logger('tap_kafka')
 UPDATE_BOOKMARK_PERIOD = 10000
+COMMIT_INTERVAL = 30
 
 
 def write_schema_message(schema_message):
@@ -33,8 +35,8 @@ def send_schema_message(stream):
     write_schema_message(schema_message)
 
 
-def do_sync(kafka_config, catalog, state):
-    """Set up kafka consumer, start reading the topi"""
+def do_sync(kafka_config, catalog, state, fn_get_args):
+    """Set up kafka consumer, start reading the topic"""
     consumer = KafkaConsumer(
         kafka_config['topic'],
         group_id=kafka_config['group_id'],
@@ -45,13 +47,17 @@ def do_sync(kafka_config, catalog, state):
         bootstrap_servers=kafka_config['bootstrap_servers'])
 
     for stream in catalog['streams']:
-        sync_stream(kafka_config, stream, state, consumer)
+        sync_stream(kafka_config, stream, state, consumer, fn_get_args)
 
 # pylint: disable=too-many-locals
-def sync_stream(kafka_config, stream, state, consumer):
+def sync_stream(kafka_config, stream, state, consumer, fn_get_args):
     """Read kafka topic continuously and generate singer compatible messages to STDOUT"""
     send_schema_message(stream)
     stream_version = singer.get_bookmark(state, stream['tap_stream_id'], 'version')
+    last_offset = singer.get_bookmark(state, stream['tap_stream_id'], 'offset')
+    last_partition = singer.get_bookmark(state, stream['tap_stream_id'], 'partition')
+    commit_timestamp = None
+
     if stream_version is None:
         stream_version = int(time.time() * 1000)
 
@@ -93,17 +99,37 @@ def sync_stream(kafka_config, stream, state, consumer):
             time_extracted=time_extracted)
         rows_saved += 1
 
+        # Send record message
         singer.write_message(record)
-        state = singer.write_bookmark(state,
-                                      stream['tap_stream_id'],
-                                      'offset',
-                                      message.offset)
 
-        # commit offsets because we processed the message
-        topic_partition = TopicPartition(message.topic, message.partition)
-        consumer.commit({topic_partition: OffsetAndMetadata(message.offset + 1, None)})
+        # Update last processed offset and partition but not commit yet
+        if not last_offset or message.offset > last_offset:
+            last_offset = message.offset
+            last_partition = message.partition
 
+        # Every UPDATE_BOOKMARK_PERIOD, update the bookmark and send state message
         if rows_saved % UPDATE_BOOKMARK_PERIOD == 0:
+            state = singer.write_bookmark(state, stream['tap_stream_id'], 'topic', message.topic)
+            state = singer.write_bookmark(state, stream['tap_stream_id'], 'offset', last_offset)
+            state = singer.write_bookmark(state, stream['tap_stream_id'], 'partition', last_partition)
+
             singer.write_message(singer.StateMessage(value=copy.deepcopy(state)))
 
-    singer.write_message(singer.StateMessage(value=copy.deepcopy(state)))
+        # Every COMMIT_INTERVAL, commit the latest offset from the state_file
+        if not commit_timestamp or \
+                datetime.datetime.utcnow() >= (commit_timestamp + datetime.timedelta(seconds=COMMIT_INTERVAL)):
+            # Read the state from disk, maybe a target connector updated it in the meantime
+            args = fn_get_args()
+            state = args.state or {}
+
+            # Get offset and partition from state file that is safe to commit
+            if state:
+                topic_to_commit = singer.get_bookmark(state, stream['tap_stream_id'], 'topic')
+                offset_to_commit = singer.get_bookmark(state, stream['tap_stream_id'], 'offset')
+                partition_to_commit = singer.get_bookmark(state, stream['tap_stream_id'], 'partition')
+
+                topic_partition = TopicPartition(topic_to_commit, partition_to_commit)
+                consumer.commit({topic_partition: OffsetAndMetadata(offset_to_commit + 1, None)})
+
+            # Update commit timestamp
+            commit_timestamp = datetime.datetime.utcnow()

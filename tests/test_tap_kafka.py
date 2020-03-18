@@ -10,6 +10,14 @@ from tap_kafka import sync
 from tests.helper.kafkaconsumermock import KafkaConsumerMock
 
 
+class SingerArgsMock:
+    """
+    Mocked singer args class
+    """
+    def __init__(self):
+        self.state = {}
+
+
 def _message_to_singer_record(message):
     return {
         'message': message.get('value'),
@@ -44,6 +52,13 @@ def _check_everything_delivered(stdout, topic, fake_messages):
 
     # All the fake kafka message that we generated in consumer have been observed as a part of the output
     assert len(singer_records) == 0
+
+
+class ArgsMock(unittest.TestCase):
+    """
+    Integration Tests
+    """
+    maxDiff = None
 
 
 class TestSync(object):
@@ -206,7 +221,7 @@ class TestSync(object):
         sys.stdout = string_io
 
         # Run sync_stream
-        sync.sync_stream(self.config, stream, {}, consumer)
+        sync.sync_stream(self.config, stream, {}, consumer, SingerArgsMock)
         sys.stdout = saved_stdout
 
         # Check if every fake consumer message processed
