@@ -50,9 +50,13 @@ def do_discovery(config):
     dump_catalog(common.generate_catalog(config))
 
 
+def get_args():
+    return utils.parse_args(REQUIRED_CONFIG_KEYS)
+
+
 def main_impl():
     """Main tap-kafka implementation"""
-    args = utils.parse_args(REQUIRED_CONFIG_KEYS)
+    args = get_args()
 
     kafka_config = {'topic': args.config['topic'],
                     'group_id': args.config['group_id'],
@@ -66,7 +70,7 @@ def main_impl():
     elif args.properties:
         state = args.state or {}
         # streams = args.properties or {'streams' : common.default_streams(kafka_config)}
-        sync.do_sync(kafka_config, args.properties, state)
+        sync.do_sync(kafka_config, args.properties, state, fn_get_args=get_args)
     else:
         LOGGER.info("No properties were selected")
 

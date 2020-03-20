@@ -1,4 +1,4 @@
-class KafkaConsumerRecordMock(object):
+class KafkaConsumerRecordMock:
     def __init__(self, topic, value, timestamp=None, key=None, timestamp_type=0, partition=0, offset=1, headers=None,
                  checksum=None, serialized_key_size=None, serialized_value_size=None, serialized_header_size=None):
         if headers is None:
