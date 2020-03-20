@@ -266,7 +266,7 @@ class TestSync(object):
         - Kafka commit should be called at startup because state is provided
         - STATE should return the max offset and partition from the consumed messages"""
         # Set test inputs
-        state = _get_resource_from_json('state.json')
+        state = _get_resource_from_json('state-with-bookmark.json')
         stream = _get_resource_from_json('catalog.json')
         kafka_messages = _get_resource_from_json('kafka-messages-from-multiple-partitions.json')
 
