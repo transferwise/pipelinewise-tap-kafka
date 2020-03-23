@@ -1,4 +1,4 @@
-2.1.1 (2020-03-20)
+2.1.1 (2020-03-23)
 -------------------
 
 - Commit offset from state file and not from the consumed messages
