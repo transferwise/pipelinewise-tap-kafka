@@ -25,6 +25,18 @@
                "null"
             ]
          },
+         "message_offset":{
+            "type":[
+               "integer",
+               "null"
+            ]
+         },
+         "message_partition":{
+            "type":[
+               "integer",
+               "null"
+            ]
+         },
          "message":{
             "type":[
                "object",

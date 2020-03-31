@@ -14,6 +14,8 @@ def generate_schema(primary_keys) -> object:
         "type": "object",
         "properties": {
             "message_timestamp": {"type": ["integer", "string", "null"]},
+            "message_offset": {"type": ["integer", "null"]},
+            "message_partition": {"type": ["integer", "null"]},
             "message": {"type": ["object", "array", "string", "null"]}
         }
     }
