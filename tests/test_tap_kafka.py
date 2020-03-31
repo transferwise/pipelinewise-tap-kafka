@@ -22,7 +22,9 @@ def _get_resource_from_json(filename):
 def _message_to_singer_record(message):
     return {
         'message': message.get('value'),
-        'message_timestamp': message.get('timestamp')
+        'message_timestamp': message.get('timestamp'),
+        'message_offset': message.get('offset'),
+        'message_partition': message.get('partition')
     }
 
 
@@ -113,6 +115,8 @@ class TestSync(object):
                 "type": "object",
                 "properties": {
                     "message_timestamp": {"type": ["integer", "string", "null"]},
+                    "message_offset": {"type": ["integer", "null"]},
+                    "message_partition": {"type": ["integer", "null"]},
                     "message": {"type": ["object", "array", "string", "null"]}
                 }
             }
@@ -125,6 +129,8 @@ class TestSync(object):
                 "properties": {
                     "id": {"type": ["string", "null"]},
                     "message_timestamp": {"type": ["integer", "string", "null"]},
+                    "message_offset": {"type": ["integer", "null"]},
+                    "message_partition": {"type": ["integer", "null"]},
                     "message": {"type": ["object", "array", "string", "null"]}
                 }
             }
@@ -138,6 +144,8 @@ class TestSync(object):
                     "id": {"type": ["string", "null"]},
                     "version": {"type": ["string", "null"]},
                     "message_timestamp": {"type": ["integer", "string", "null"]},
+                    "message_offset": {"type": ["integer", "null"]},
+                    "message_partition": {"type": ["integer", "null"]},
                     "message": {"type": ["object", "array", "string", "null"]}
                 }
             }
@@ -157,6 +165,8 @@ class TestSync(object):
                            "type": "object",
                            "properties": {
                                 "message_timestamp": {"type": ["integer", "string", "null"]},
+                                "message_offset": {"type": ["integer", "null"]},
+                                "message_partition": {"type": ["integer", "null"]},
                                 "message": {"type": ["object", "array", "string", "null"]}
                            }
                        },
@@ -180,6 +190,8 @@ class TestSync(object):
                            "properties": {
                                 "id": {"type": ["string", "null"]},
                                 "message_timestamp": {"type": ["integer", "string", "null"]},
+                                "message_offset": {"type": ["integer", "null"]},
+                                "message_partition": {"type": ["integer", "null"]},
                                 "message": {"type": ["object", "array", "string", "null"]}
                            }
                        },
@@ -204,6 +216,8 @@ class TestSync(object):
                                 "id": {"type": ["string", "null"]},
                                 "version": {"type": ["string", "null"]},
                                 "message_timestamp": {"type": ["integer", "string", "null"]},
+                                "message_offset": {"type": ["integer", "null"]},
+                                "message_partition": {"type": ["integer", "null"]},
                                 "message": {"type": ["object", "array", "string", "null"]}
                            }
                        },

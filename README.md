@@ -55,6 +55,9 @@ This tap reads Kafka messages and generating singer compatible SCHEMA and RECORD
 
 | Property Name               | Description                                                                         |
 |-----------------------------|-------------------------------------------------------------------------------------|
+| MESSAGE_TIMESTAMP           | Timestamp extracted from the kafka metadata                                         |
+| MESSAGE_OFFSET              | Offset extracted from the kafka metadata                                            |
+| MESSAGE_PARTITION           | Partition extracted from the kafka metadata                                         |
 | MESSAGE                     | The original Kafka message                                                          |
 | DYNAMIC_PRIMARY_KEY(S)      | (Optional) Dynamically added primary key values, extracted from the Kafka message   |
 

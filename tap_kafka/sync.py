@@ -95,7 +95,9 @@ def sync_stream(kafka_config, stream, state, consumer, fn_get_args):
         # Create record message with columns
         rec = {
             "message": message.value,
-            "message_timestamp": message.timestamp
+            "message_timestamp": message.timestamp,
+            "message_offset": message.offset,
+            "message_partition": message.partition
         }
 
         # Add primary keys to the record message
