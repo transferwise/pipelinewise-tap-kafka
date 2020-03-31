@@ -60,19 +60,27 @@ def get_args():
     return utils.parse_args(REQUIRED_CONFIG_KEYS)
 
 
+def generate_config(args_config):
+    return {
+        # Add required parameters
+        'topic': args_config['topic'],
+        'group_id': args_config['group_id'],
+        'bootstrap_servers': args_config['bootstrap_servers'].split(','),
+
+        # Add optional parameters with defaults
+        'consumer_timeout_ms': args_config.get('consumer_timeout_ms', DEFAULT_CONSUMER_TIMEOUT_MS),
+        'session_timeout_ms': args_config.get('session_timeout_ms', DEFAULT_SESSION_TIMEOUT_MS),
+        'heartbeat_interval_ms': args_config.get('heartbeat_interval_ms', DEFAULT_HEARTBEAT_INTERVAL_MS),
+        'max_poll_interval_ms': args_config.get('max_poll_interval_ms', DEFAULT_MAX_POLL_INTERVAL_MS),
+        'encoding': args_config.get('encoding', DEFAULT_ENCODING),
+        'primary_keys': args_config.get('primary_keys', {})
+    }
+
+
 def main_impl():
     """Main tap-kafka implementation"""
     args = get_args()
-    kafka_config = {'topic': args.config['topic'],
-                    'group_id': args.config['group_id'],
-                    'bootstrap_servers': args.config['bootstrap_servers'].split(','),
-                    'consumer_timeout_ms': args.config.get('consumer_timeout_ms', DEFAULT_CONSUMER_TIMEOUT_MS),
-                    'session_timeout_ms': args.config.get('session_timeout_ms', DEFAULT_SESSION_TIMEOUT_MS),
-                    'heartbeat_interval_ms': args.config.get('heartbeat_interval_m', DEFAULT_HEARTBEAT_INTERVAL_MS),
-                    'max_poll_interval_ms': args.config.get('max_poll_interval_ms', DEFAULT_MAX_POLL_INTERVAL_MS),
-                    'encoding': args.config.get('encoding', DEFAULT_ENCODING),
-                    'primary_keys': args.config.get('primary_keys', {})
-                    }
+    kafka_config = generate_config(args.config)
 
     if args.discover:
         do_discovery(args.config)
