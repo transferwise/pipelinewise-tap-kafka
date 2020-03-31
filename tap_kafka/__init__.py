@@ -18,6 +18,12 @@ REQUIRED_CONFIG_KEYS = [
     # 'primary_keys'
 ]
 
+DEFAULT_CONSUMER_TIMEOUT_MS = 10000
+DEFAULT_SESSION_TIMEOUT_MS = 30000
+DEFAULT_HEARTBEAT_INTERVAL_MS = 10000
+DEFAULT_MAX_POLL_INTERVAL_MS = 300000
+DEFAULT_ENCODING = 'utf-8'
+
 
 def dump_catalog(all_streams):
     """Dump every stream catalog as JSON to STDOUT"""
@@ -31,7 +37,7 @@ def do_discovery(config):
         consumer = KafkaConsumer(config['topic'],
                                  group_id=config['group_id'],
                                  enable_auto_commit=False,
-                                 consumer_timeout_ms=config.get('consumer_timeout_ms', 10000),
+                                 consumer_timeout_ms=config['consumer_timeout_ms'],
                                  # value_deserializer=lambda m: json.loads(m.decode('ascii'))
                                  bootstrap_servers=config['bootstrap_servers'].split(','))
 
@@ -57,11 +63,14 @@ def get_args():
 def main_impl():
     """Main tap-kafka implementation"""
     args = get_args()
-
     kafka_config = {'topic': args.config['topic'],
                     'group_id': args.config['group_id'],
                     'bootstrap_servers': args.config['bootstrap_servers'].split(','),
-                    'encoding': args.config.get('encoding', 'utf-8'),
+                    'consumer_timeout_ms': args.config.get('consumer_timeout_ms', DEFAULT_CONSUMER_TIMEOUT_MS),
+                    'session_timeout_ms': args.config.get('session_timeout_ms', DEFAULT_SESSION_TIMEOUT_MS),
+                    'heartbeat_interval_ms': args.config.get('heartbeat_interval_m', DEFAULT_HEARTBEAT_INTERVAL_MS),
+                    'max_poll_interval_ms': args.config.get('max_poll_interval_ms', DEFAULT_MAX_POLL_INTERVAL_MS),
+                    'encoding': args.config.get('encoding', DEFAULT_ENCODING),
                     'primary_keys': args.config.get('primary_keys', {})
                     }
 
