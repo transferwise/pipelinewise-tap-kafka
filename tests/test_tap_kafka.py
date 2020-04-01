@@ -6,12 +6,12 @@ from unittest.mock import patch
 
 from io import StringIO
 
+import tap_kafka
 from tap_kafka import common
 from tap_kafka import sync
 
 from tests.helper.parse_args_mock import ParseArgsMock
 from tests.helper.kafka_consumer_mock import KafkaConsumerMock
-
 
 
 def _get_resource_from_json(filename):
@@ -106,6 +106,54 @@ class TestSync(object):
     def setup_class(self):
         self.config = {
             "topic": "dummy_topic"
+        }
+
+    def test_generate_config_with_defaults(self):
+        """Should generate config dictionary with every required and optional parameter with defaults"""
+        minimal_config = {
+            'topic': 'my_topic',
+            'group_id': 'my_groupid',
+            'bootstrap_servers': 'server1,server2,server3'
+        }
+        assert tap_kafka.generate_config(minimal_config) == {
+            'topic': 'my_topic',
+            'group_id': 'my_groupid',
+            'bootstrap_servers': ['server1', 'server2','server3'],
+            'consumer_timeout_ms': tap_kafka.DEFAULT_CONSUMER_TIMEOUT_MS,
+            'session_timeout_ms': tap_kafka.DEFAULT_SESSION_TIMEOUT_MS,
+            'heartbeat_interval_ms': tap_kafka.DEFAULT_HEARTBEAT_INTERVAL_MS,
+            'max_poll_interval_ms': tap_kafka.DEFAULT_MAX_POLL_INTERVAL_MS,
+            'encoding': tap_kafka.DEFAULT_ENCODING,
+            'primary_keys': {}
+        }
+
+    def test_generate_config_with_custom_parameters(self):
+        """Should generate config dictionary with every required and optional parameter with custom values"""
+        minimal_config = {
+            'topic': 'my_topic',
+            'group_id': 'my_groupid',
+            'bootstrap_servers': 'server1,server2,server3',
+            'consumer_timeout_ms': 1111,
+            'session_timeout_ms': 2222,
+            'heartbeat_interval_ms': 3333,
+            'max_poll_interval_ms': 4444,
+            'encoding': 'iso-8859-1',
+            'primary_keys': {
+                'id': '$.jsonpath.to.primary_key'
+            }
+        }
+        assert tap_kafka.generate_config(minimal_config) == {
+            'topic': 'my_topic',
+            'group_id': 'my_groupid',
+            'bootstrap_servers': ['server1', 'server2','server3'],
+            'consumer_timeout_ms': 1111,
+            'session_timeout_ms': 2222,
+            'heartbeat_interval_ms': 3333,
+            'max_poll_interval_ms': 4444,
+            'encoding': 'iso-8859-1',
+            'primary_keys': {
+                'id': '$.jsonpath.to.primary_key'
+            }
         }
 
     def test_generate_schema_with_no_pk(self):

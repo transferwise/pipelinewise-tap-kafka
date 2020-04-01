@@ -10,9 +10,9 @@ from singer import utils, metadata
 from kafka import KafkaConsumer, OffsetAndMetadata, TopicPartition
 from jsonpath_ng import parse
 
-
 LOGGER = singer.get_logger('tap_kafka')
-UPDATE_BOOKMARK_PERIOD = 10000
+LOG_MESSAGES_PERIOD = 1000
+UPDATE_BOOKMARK_PERIOD = 1000
 COMMIT_INTERVAL = 30
 
 
@@ -48,8 +48,9 @@ def commit_kafka_consumer(consumer, state, tap_stream_id):
     offset_to_commit = singer.get_bookmark(state, tap_stream_id, 'offset')
     partition_to_commit = singer.get_bookmark(state, tap_stream_id, 'partition')
 
-    if topic_to_commit and offset_to_commit and partition_to_commit:
+    if topic_to_commit and offset_to_commit is not None and partition_to_commit is not None:
         topic_partition = TopicPartition(topic_to_commit, partition_to_commit)
+        LOGGER.info("Committing consumed offset: %d", offset_to_commit + 1)
         consumer.commit({topic_partition: OffsetAndMetadata(offset_to_commit + 1, None)})
 
 
@@ -59,7 +60,10 @@ def do_sync(kafka_config, catalog, state, fn_get_args):
         kafka_config['topic'],
         group_id=kafka_config['group_id'],
         enable_auto_commit=False,
-        consumer_timeout_ms=kafka_config.get('consumer_timeout_ms', 10000),
+        consumer_timeout_ms=kafka_config['consumer_timeout_ms'],
+        session_timeout_ms=kafka_config['session_timeout_ms'],
+        heartbeat_interval_ms=kafka_config['heartbeat_interval_ms'],
+        max_poll_interval_ms=kafka_config['max_poll_interval_ms'],
         auto_offset_reset='earliest',
         value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])),
         bootstrap_servers=kafka_config['bootstrap_servers'])
@@ -73,9 +77,11 @@ def sync_stream(kafka_config, stream, state, consumer, fn_get_args):
     """Read kafka topic continuously and generate singer compatible messages to STDOUT"""
     send_schema_message(stream)
     stream_version = singer.get_bookmark(state, stream['tap_stream_id'], 'version')
-    topic = singer.get_bookmark(state, stream['tap_stream_id'], 'topic')
-    offset = singer.get_bookmark(state, stream['tap_stream_id'], 'offset')
-    partition = singer.get_bookmark(state, stream['tap_stream_id'], 'partition')
+    time_extracted = utils.now()
+    received_messages = 0
+    topic = None
+    offset = None
+    partition = None
     commit_timestamp = None
 
     if stream_version is None:
@@ -85,8 +91,6 @@ def sync_stream(kafka_config, stream, state, consumer, fn_get_args):
         stream=stream['tap_stream_id'],
         version=stream_version))
 
-    time_extracted = utils.now()
-    rows_saved = 0
     for message in consumer:
         LOGGER.debug("%s:%s:%s: key=%s value=%s" % (message.topic, message.partition,
                                                     message.offset, message.key,
@@ -100,6 +104,13 @@ def sync_stream(kafka_config, stream, state, consumer, fn_get_args):
             "message_partition": message.partition
         }
 
+        # Log message stats periodically
+        received_messages += 1
+        if received_messages % LOG_MESSAGES_PERIOD == 0:
+            bookmark = state.get('bookmarks', {}).get(stream['tap_stream_id'])
+            LOGGER.info("%d messages received... Last received offset: %d Partition: %d -- Uncommitted bookmark: %s",
+                        received_messages, message.offset, message.partition, bookmark)
+
         # Add primary keys to the record message
         pks = kafka_config.get("primary_keys", [])
         for key in pks:
@@ -112,24 +123,23 @@ def sync_stream(kafka_config, stream, state, consumer, fn_get_args):
             stream=stream['tap_stream_id'],
             record=rec,
             time_extracted=time_extracted)
-        rows_saved += 1
 
         # Send record message
         singer.write_message(record)
 
         # Update offset and partition after every message but not committing yet
-        if not offset or message.offset > offset:
-            topic = message.topic
-            offset = message.offset
-            partition = message.partition
+        topic = message.topic
+        offset = message.offset
+        partition = message.partition
 
         # Every UPDATE_BOOKMARK_PERIOD, update the bookmark and send state message
-        if rows_saved % UPDATE_BOOKMARK_PERIOD == 0:
+        if received_messages % UPDATE_BOOKMARK_PERIOD == 0:
             state = update_bookmark(state,
                                     stream['tap_stream_id'],
                                     topic,
                                     offset,
                                     partition)
+            LOGGER.info("Updating bookmark and sending to tap consumer: %s", state)
             singer.write_message(singer.StateMessage(value=copy.deepcopy(state)))
 
         # Every COMMIT_INTERVAL, commit the latest offset from the state_file

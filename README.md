@@ -44,12 +44,19 @@ or
 {
   "group_id": "1",
   "bootstrap_servers": "foo.com,bar.com",
+  "consumer_timeout_ms": 10000,
+  "session_timeout_ms": 30000,
+  "heartbeat_interval_ms": 10000,
+  "max_poll_interval_ms": 300000,
   "topic": "messages",
   "primary_keys": {
     "id": "$.jsonpath.to.primary_key"
   }
 }
 ```
+
+`consumer_timeout_ms` , `session_timeout_ms` , `heartbeat_interval_ms` and `max_poll_interval_ms` are optional
+parameters and set to the default values in the example above .
 
 This tap reads Kafka messages and generating singer compatible SCHEMA and RECORD messages in the following format.
 
