@@ -1,25 +1,38 @@
 """Sync functions that consumes and transforms kafka messages to singer messages"""
-import sys
 import json
 import time
 import copy
-import datetime
 
 import singer
 from singer import utils, metadata
+from tap_kafka.local_store import LocalStore
 from kafka import KafkaConsumer, OffsetAndMetadata, TopicPartition
 from jsonpath_ng import parse
 
 LOGGER = singer.get_logger('tap_kafka')
-LOG_MESSAGES_PERIOD = 1000
-UPDATE_BOOKMARK_PERIOD = 1000
-COMMIT_INTERVAL = 30
+
+LOG_MESSAGES_PERIOD = 1000          # Print log messages to stderr after every nth messages
+UPDATE_BOOKMARK_PERIOD = 1000       # Update and send bookmark to stdout after nth messages
+CLEANUP_LOCAL_STORE_INTERVAL = 30   # Seconds between cleanup processes in the local store
 
 
-def write_schema_message(schema_message):
-    """Write singer SCHEMA message to STDOUT"""
-    sys.stdout.write(json.dumps(schema_message) + '\n')
-    sys.stdout.flush()
+def search_in_list_of_dict_by_key_value(d_list, key, value):
+    """Search a specific value of a certain key in a list of dictionary.
+    Returns the index of first matching index item in the list or -1 if not found"""
+    for idx, dic in enumerate(d_list):
+        if dic.get(key) == value:
+            return idx
+    return -1
+
+
+def send_activate_version_message(state, tap_stream_id):
+    """Generate and send singer ACTIVATE message"""
+    stream_version = singer.get_bookmark(state, tap_stream_id, 'version')
+    if stream_version is None:
+        stream_version = int(time.time() * 1000)
+    singer.write_message(singer.ActivateVersionMessage(
+        stream=tap_stream_id,
+        version=stream_version))
 
 
 def send_schema_message(stream):
@@ -27,140 +40,194 @@ def send_schema_message(stream):
     md_map = metadata.to_map(stream['metadata'])
     pks = md_map.get((), {}).get('table-key-properties', [])
 
-    schema_message = {'type': 'SCHEMA',
-                      'stream': stream['tap_stream_id'],
-                      'schema': stream['schema'],
-                      'key_properties': pks,
-                      'bookmark_properties': pks}
-    write_schema_message(schema_message)
+    singer.write_message(singer.SchemaMessage(
+        stream=stream['tap_stream_id'],
+        schema=stream['schema'],
+        key_properties=pks,
+        bookmark_properties=pks))
 
 
-def update_bookmark(state, tap_stream_id, topic, offset, partition):
-    state = singer.write_bookmark(state, tap_stream_id, 'topic', topic)
-    state = singer.write_bookmark(state, tap_stream_id, 'offset', offset)
-    state = singer.write_bookmark(state, tap_stream_id, 'partition', partition)
-
-    return state
+def update_bookmark(state, topic, timestamp):
+    """Update bookmark with a new timestamp"""
+    return singer.write_bookmark(state, topic, 'timestamp', timestamp or 0)
 
 
-def commit_kafka_consumer(consumer, state, tap_stream_id):
-    topic_to_commit = singer.get_bookmark(state, tap_stream_id, 'topic')
-    offset_to_commit = singer.get_bookmark(state, tap_stream_id, 'offset')
-    partition_to_commit = singer.get_bookmark(state, tap_stream_id, 'partition')
-
-    if topic_to_commit and offset_to_commit is not None and partition_to_commit is not None:
-        topic_partition = TopicPartition(topic_to_commit, partition_to_commit)
-        LOGGER.info("Committing consumed offset: %d", offset_to_commit + 1)
-        consumer.commit({topic_partition: OffsetAndMetadata(offset_to_commit + 1, None)})
+def init_local_store(kafka_config):
+    LOGGER.info('Initialising local store at %s', kafka_config['local_store_dir'])
+    return LocalStore(
+        directory=kafka_config['local_store_dir'],
+        topic=kafka_config['topic'])
 
 
-def do_sync(kafka_config, catalog, state, fn_get_args):
-    """Set up kafka consumer, start reading the topic"""
-    consumer = KafkaConsumer(
+def init_kafka_consumer(kafka_config):
+    LOGGER.info('Initialising Kafka Consumer...')
+    return KafkaConsumer(
+        # Required parameters
         kafka_config['topic'],
+        bootstrap_servers=kafka_config['bootstrap_servers'],
         group_id=kafka_config['group_id'],
-        enable_auto_commit=False,
+
+        # Optional parameters
         consumer_timeout_ms=kafka_config['consumer_timeout_ms'],
         session_timeout_ms=kafka_config['session_timeout_ms'],
         heartbeat_interval_ms=kafka_config['heartbeat_interval_ms'],
         max_poll_interval_ms=kafka_config['max_poll_interval_ms'],
-        auto_offset_reset='earliest',
-        value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])),
-        bootstrap_servers=kafka_config['bootstrap_servers'])
 
-    for stream in catalog['streams']:
-        sync_stream(kafka_config, stream, state, consumer, fn_get_args)
+        # Non-configurable parameters
+        enable_auto_commit=False,
+        auto_offset_reset='earliest',
+        value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])))
+
+
+def kafka_message_to_singer_record(message, topic, primary_keys):
+    """Transforms kafka message to singer record message"""
+    # Create dictionary with base attributes
+    record = {
+        "message": message.value,
+        "message_timestamp": message.timestamp,
+        "message_offset": message.offset,
+        "message_partition": message.partition
+    }
+
+    # Add primary keys to the record message
+    for key in primary_keys:
+        pk_selector = primary_keys[key]
+        match = parse(pk_selector).find(message.value)
+        if match:
+            record[key] = match[0].value
+
+    return record
+
+
+def consume_kafka_message(message, topic, primary_keys, local_store):
+    """Insert single kafka message into the internal store"""
+    singer_record = kafka_message_to_singer_record(message, topic, primary_keys)
+    insert_ts = local_store.insert(singer.format_message(singer.RecordMessage(stream=topic,
+                                                                              record=singer_record,
+                                                                              time_extracted=utils.now())))
+    return insert_ts
+
+
+def commit_kafka_consumer(consumer, topic, partition, offset):
+    """Commit consumed message to kafka"""
+    topic_partition = TopicPartition(topic, partition)
+    consumer.commit({topic_partition: OffsetAndMetadata(offset + 1, None)})
 
 
 # pylint: disable=too-many-locals
-def sync_stream(kafka_config, stream, state, consumer, fn_get_args):
-    """Read kafka topic continuously and generate singer compatible messages to STDOUT"""
-    send_schema_message(stream)
-    stream_version = singer.get_bookmark(state, stream['tap_stream_id'], 'version')
-    time_extracted = utils.now()
+def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
+    """Read kafka topic continuously, insert into local store and flush singer
+    compatible messages in batches to STDOUT
+
+    Returns the timestamp of the last batch flush event"""
+    topic = kafka_config['topic']
+    primary_keys = kafka_config['primary_keys']
+    max_runtime_ms = kafka_config['max_runtime_ms']
+    batch_size_rows = kafka_config['batch_size_rows']
+    local_store_cleanup_ts = time.time()
     received_messages = 0
-    topic = None
-    offset = None
-    partition = None
-    commit_timestamp = None
+    last_consumed_ts = 0
+    start_time = 0
 
-    if stream_version is None:
-        stream_version = int(time.time() * 1000)
+    # Send singer ACTIVATE message
+    send_activate_version_message(state, topic)
 
-    singer.write_message(singer.ActivateVersionMessage(
-        stream=stream['tap_stream_id'],
-        version=stream_version))
-
+    # Start consuming kafka messages
+    last_flush_ts = float(singer.get_bookmark(state, topic, 'timestamp') or 0)
     for message in consumer:
         LOGGER.debug("%s:%s:%s: key=%s value=%s" % (message.topic, message.partition,
                                                     message.offset, message.key,
                                                     message.value))
 
-        # Create record message with columns
-        rec = {
-            "message": message.value,
-            "message_timestamp": message.timestamp,
-            "message_offset": message.offset,
-            "message_partition": message.partition
-        }
+        # Initialise the start time after the first message
+        if not start_time:
+            start_time = time.time()
+
+        # Generate and insert singer message into local store
+        last_consumed_ts = consume_kafka_message(message, topic, primary_keys, local_store)
+
+        # Commit offsets because we processed the message
+        commit_kafka_consumer(consumer, message.topic, message.partition, message.offset)
 
         # Log message stats periodically
         received_messages += 1
         if received_messages % LOG_MESSAGES_PERIOD == 0:
-            bookmark = state.get('bookmarks', {}).get(stream['tap_stream_id'])
-            LOGGER.info("%d messages received... Last received offset: %d Partition: %d -- Uncommitted bookmark: %s",
-                        received_messages, message.offset, message.partition, bookmark)
-
-        # Add primary keys to the record message
-        pks = kafka_config.get("primary_keys", [])
-        for key in pks:
-            pk_selector = pks[key]
-            match = parse(pk_selector).find(message.value)
-            if match:
-                rec[key] = match[0].value
-
-        record = singer.RecordMessage(
-            stream=stream['tap_stream_id'],
-            record=rec,
-            time_extracted=time_extracted)
-
-        # Send record message
-        singer.write_message(record)
-
-        # Update offset and partition after every message but not committing yet
-        topic = message.topic
-        offset = message.offset
-        partition = message.partition
+            LOGGER.info("%d messages received... Last consumed timestamp: %f Partition: %d Offset: %d",
+                        received_messages, last_consumed_ts, message.partition, message.offset)
 
         # Every UPDATE_BOOKMARK_PERIOD, update the bookmark and send state message
         if received_messages % UPDATE_BOOKMARK_PERIOD == 0:
-            state = update_bookmark(state,
-                                    stream['tap_stream_id'],
-                                    topic,
-                                    offset,
-                                    partition)
-            LOGGER.info("Updating bookmark and sending to tap consumer: %s", state)
-            singer.write_message(singer.StateMessage(value=copy.deepcopy(state)))
+            state = update_bookmark(state, topic, last_consumed_ts)
+            LOGGER.debug("Updating bookmark and inserting to local store: %s", state)
+            local_store.insert(singer.format_message(singer.StateMessage(value=copy.deepcopy(state))))
 
-        # Every COMMIT_INTERVAL, commit the latest offset from the state_file
-        if not commit_timestamp or \
-                datetime.datetime.utcnow() >= (commit_timestamp + datetime.timedelta(seconds=COMMIT_INTERVAL)):
+        # Flush local store periodically
+        if received_messages % batch_size_rows == 0:
+            LOGGER.debug('Sending %d unprocessed messages from local store...', batch_size_rows)
+            local_store.flush_after(last_flush_ts)
+            last_flush_ts = last_consumed_ts
+
+        now = time.time()
+        # Every CLEANUP_LOCAL_STORE_INTERVAL delete the processed items from the local store
+        if now >= (local_store_cleanup_ts + CLEANUP_LOCAL_STORE_INTERVAL):
             # Read the state from disk, maybe a target connector updated it in the meantime
             args = fn_get_args()
             state = args.state or {}
 
-            # Commit the kafka offset
-            if state:
-                commit_kafka_consumer(consumer, state, stream['tap_stream_id'])
+            # Delete every processed item from the local store
+            LOGGER.debug(f'Deleting processed items from local store before state: %s', state)
+            local_store.delete_before_bookmark(state)
 
-            # Update commit timestamp
-            commit_timestamp = datetime.datetime.utcnow()
+            # Update last cleanup timestamp
+            local_store_cleanup_ts = now
+
+        # Stop consuming more messages if max runtime exceeded
+        max_runtime_s = max_runtime_ms / 1000
+        if now >= (start_time + max_runtime_s):
+            LOGGER.info(f'Max runtime {max_runtime_s} seconds exceeded. Stop consuming more messages.')
+            break
 
     # Update singer bookmark at the last time to point it the the last processed offset
-    if topic and offset and partition:
-        state = update_bookmark(state,
-                                stream['tap_stream_id'],
-                                topic,
-                                offset,
-                                partition)
+    if last_consumed_ts:
+        state = update_bookmark(state, topic, last_consumed_ts)
+        local_store.insert(singer.format_message(singer.StateMessage(value=copy.deepcopy(state))))
+
+    return last_flush_ts
+
+
+def do_sync(kafka_config, catalog, state, fn_get_args):
+    """Set up kafka consumer, start reading the topic"""
+    topic = kafka_config['topic']
+
+    # Only one stream
+    streams = catalog.get('streams', [])
+    topic_pos = search_in_list_of_dict_by_key_value(streams, 'tap_stream_id', topic)
+    if topic_pos != -1:
+        stream = streams[topic_pos]
+
+        # Init local store and delete every processed item
+        local_store = init_local_store(kafka_config)
+        LOGGER.debug(f'Deleting processed items from local store before state: %s', state)
+        local_store.delete_before_bookmark(state)
+
+        # Send the initial schema message
+        send_schema_message(stream)
+
+        # Send messages from local store first
+        LOGGER.info('Sending %d unprocessed messages from local store...', local_store.count_all())
+        flush_ts = local_store.flush_after_bookmark(state)
+
+        # Send updated state message
+        state = update_bookmark(state, topic, flush_ts)
+        LOGGER.info("Sending updated bookmark to tap consumer: %s", state)
         singer.write_message(singer.StateMessage(value=copy.deepcopy(state)))
+
+        # Start consuming new messages from kafka
+        consumer = init_kafka_consumer(kafka_config)
+        last_flush_ts = read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args)
+
+        # Flush remaining items in local store
+        LOGGER.info('Sending remaining messages from local store...')
+        local_store.flush_after(last_flush_ts)
+    else:
+        raise Exception(f'Invalid catalog object. Cannot find {topic} in catalog')

@@ -11,6 +11,7 @@ from tap_kafka import common
 from tap_kafka import sync
 
 from tests.helper.parse_args_mock import ParseArgsMock
+from tests.helper.local_store_mock import LocalStoreMock
 from tests.helper.kafka_consumer_mock import KafkaConsumerMock
 
 
@@ -56,8 +57,9 @@ def _parse_stdout(stdout):
     return stdout_messages
 
 
-def _run_sync(config, state, stream, kafka_messages):
+def _read_kafka_topic(config, state, stream, kafka_messages):
     # Mock ParseArgs and KafkaConsumer classes
+    local_store_mock = LocalStoreMock()
     parse_arg_mock = ParseArgsMock(state)
     consumer = KafkaConsumerMock(kafka_messages)
 
@@ -67,22 +69,19 @@ def _run_sync(config, state, stream, kafka_messages):
     sys.stdout = string_io
 
     # Run sync_stream
-    sync.sync_stream(config, stream, state, consumer, parse_arg_mock.get_args)
-    sys.stdout = saved_stdout
+    sync.read_kafka_topic(consumer, local_store_mock, config, state, parse_arg_mock.get_args)
 
     # Check if every kafka message processed
     assert len(list(consumer)) == 0
 
     # Return everything from stdout
-    return string_io.getvalue()
+    return local_store_mock
 
 
-def _assert_singer_messages_on_stdout_equal(stdout, topic, exp_records, exp_states):
-    stdout_messages = _parse_stdout(stdout)
-
+def _assert_singer_messages_in_local_store_equal(local_store, topic, exp_records, exp_states):
     exp_singer_records = list(map(lambda x: _message_to_singer_record(x), exp_records))
     exp_singer_states = list(map(lambda x: _message_to_singer_state(x), exp_states))
-    for msg in stdout_messages:
+    for msg in map(json.loads, local_store.messages):
         if msg['type'] == 'RECORD':
             assert msg['stream'] == topic
             record = msg['record']
@@ -105,55 +104,70 @@ class TestSync(object):
     @classmethod
     def setup_class(self):
         self.config = {
-            "topic": "dummy_topic"
+            'topic': 'dummy_topic',
+            'primary_keys': {},
+            'max_runtime_ms': tap_kafka.DEFAULT_MAX_RUNTIME_MS,
+            'batch_size_rows': tap_kafka.DEFAULT_BATCH_SIZE_ROWS
         }
 
     def test_generate_config_with_defaults(self):
         """Should generate config dictionary with every required and optional parameter with defaults"""
         minimal_config = {
             'topic': 'my_topic',
-            'group_id': 'my_groupid',
+            'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3'
         }
         assert tap_kafka.generate_config(minimal_config) == {
             'topic': 'my_topic',
-            'group_id': 'my_groupid',
-            'bootstrap_servers': ['server1', 'server2','server3'],
+            'group_id': 'my_group_id',
+            'bootstrap_servers': ['server1', 'server2', 'server3'],
+            'primary_keys': {},
+            'max_runtime_ms': tap_kafka.DEFAULT_MAX_RUNTIME_MS,
+            'batch_size_rows': tap_kafka.DEFAULT_BATCH_SIZE_ROWS,
+            'batch_flush_interval_ms': tap_kafka.DEFAULT_BATCH_FLUSH_INTERVAL_MS,
             'consumer_timeout_ms': tap_kafka.DEFAULT_CONSUMER_TIMEOUT_MS,
             'session_timeout_ms': tap_kafka.DEFAULT_SESSION_TIMEOUT_MS,
             'heartbeat_interval_ms': tap_kafka.DEFAULT_HEARTBEAT_INTERVAL_MS,
             'max_poll_interval_ms': tap_kafka.DEFAULT_MAX_POLL_INTERVAL_MS,
             'encoding': tap_kafka.DEFAULT_ENCODING,
-            'primary_keys': {}
+            'local_store_dir': tap_kafka.DEFAULT_LOCAL_STORE_DIR
         }
 
     def test_generate_config_with_custom_parameters(self):
         """Should generate config dictionary with every required and optional parameter with custom values"""
-        minimal_config = {
+        custom_config = {
             'topic': 'my_topic',
-            'group_id': 'my_groupid',
+            'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3',
+            'primary_keys': {
+                'id': '$.jsonpath.to.primary_key'
+            },
+            'max_runtime_ms': 1111,
+            'batch_size_rows': 2222,
+            'batch_flush_interval_ms': 3333,
             'consumer_timeout_ms': 1111,
             'session_timeout_ms': 2222,
             'heartbeat_interval_ms': 3333,
             'max_poll_interval_ms': 4444,
             'encoding': 'iso-8859-1',
-            'primary_keys': {
-                'id': '$.jsonpath.to.primary_key'
-            }
+            'local_store_dir': '/tmp/local-store'
         }
-        assert tap_kafka.generate_config(minimal_config) == {
+        assert tap_kafka.generate_config(custom_config) == {
             'topic': 'my_topic',
-            'group_id': 'my_groupid',
-            'bootstrap_servers': ['server1', 'server2','server3'],
+            'group_id': 'my_group_id',
+            'bootstrap_servers': ['server1', 'server2', 'server3'],
+            'primary_keys': {
+                'id': '$.jsonpath.to.primary_key'
+            },
+            'max_runtime_ms': 1111,
+            'batch_size_rows': 2222,
+            'batch_flush_interval_ms': 3333,
             'consumer_timeout_ms': 1111,
             'session_timeout_ms': 2222,
             'heartbeat_interval_ms': 3333,
             'max_poll_interval_ms': 4444,
             'encoding': 'iso-8859-1',
-            'primary_keys': {
-                'id': '$.jsonpath.to.primary_key'
-            }
+            'local_store_dir': '/tmp/local-store'
         }
 
     def test_generate_schema_with_no_pk(self):
@@ -277,31 +291,31 @@ class TestSync(object):
         """Updating empty state should generate a new bookmark"""
         input_state = {}
 
-        assert sync.update_bookmark(input_state, 'test-stream-id-1', 'test-topic', 11, 22) == \
-            {'bookmarks': {'test-stream-id-1': {'topic': 'test-topic', 'offset': 11, 'partition': 22}}}
+        assert sync.update_bookmark(input_state, 'test-topic', 123456) == \
+            {'bookmarks': {'test-topic': {'timestamp': 123456}}}
 
     def test_update_bookmark__update_stream(self):
         """Updating existing bookmark in state should update at every property"""
-        input_state = {'bookmarks': {'test-stream-id-0': {'topic': 'test-topic', 'offset': 1, 'partition': 2}}}
+        input_state = {'bookmarks': {'test-topic-updated': {'timestamp': 111}}}
 
-        assert sync.update_bookmark(input_state, 'test-stream-id-0', 'test-topic-updated', 99, 999) == \
-            {'bookmarks': {'test-stream-id-0': {'topic': 'test-topic-updated', 'offset': 99, 'partition': 999}}}
+        assert sync.update_bookmark(input_state, 'test-topic-updated', 999) == \
+            {'bookmarks': {'test-topic-updated': {'timestamp': 999}}}
 
     def test_update_bookmark__add_new_stream(self):
         """Updating a not existing stream id should be appended to the bookmarks dictionary"""
-        input_state = {'bookmarks': {'test-stream-id-0': {'topic': 'test-topic', 'offset': 1, 'partition': 2}}}
+        input_state = {'bookmarks': {'test-topic-0': {'timestamp': 111}}}
 
-        assert sync.update_bookmark(input_state, 'test-stream-id-1', 'test-topic', 11, 22) == \
+        assert sync.update_bookmark(input_state, 'test-topic-1', 222) == \
             {'bookmarks': {
-                'test-stream-id-0': {'topic': 'test-topic', 'offset':  1, 'partition':  2},
-                'test-stream-id-1': {'topic': 'test-topic', 'offset': 11, 'partition': 22}}}
+                'test-topic-0': {'timestamp': 111},
+                'test-topic-1': {'timestamp': 222}}}
 
     @patch('tap_kafka.sync.commit_kafka_consumer')
     def test_consuming_records_with_no_state(self, commit_kafka_consumer_mock):
         """Every consumed kafka message should generate a valid singer RECORD and a STATE messages at the end
 
-        - Kafka commit should not be called at startup because state is NOT provided
-        - STATE should return the max offset and partition from the consumed messages"""
+        - Kafka commit should be called after every consumed message
+        - STATE should return insert timestamp from the local store"""
         # Set test inputs
         state = {}
         stream = _get_resource_from_json('catalog.json')
@@ -310,23 +324,26 @@ class TestSync(object):
         # Set expected result on stdout
         exp_topic = self.config['topic']
         exp_record_messages = kafka_messages
-        exp_state_messages = [{'dummy_topic': {'topic': 'dummy_topic', 'offset': 3, 'partition': 2}}]
+        exp_state_messages = [{'dummy_topic': {'timestamp': 123456}}]
 
         # Run test
-        sync_stdout = _run_sync(self.config, state, stream, kafka_messages)
+        local_store = _read_kafka_topic(self.config, state, stream, kafka_messages)
 
         # Compare actual to expected results
-        _assert_singer_messages_on_stdout_equal(sync_stdout, exp_topic, exp_record_messages, exp_state_messages)
+        _assert_singer_messages_in_local_store_equal(local_store,
+                                                     exp_topic,
+                                                     exp_record_messages,
+                                                     exp_state_messages)
 
-        # Kafka commit should not be called because state is NOT provided
-        assert commit_kafka_consumer_mock.call_count == 0
+        # Kafka commit should be called because state is NOT provided
+        assert commit_kafka_consumer_mock.call_count == 3
 
     @patch('tap_kafka.sync.commit_kafka_consumer')
     def test_consuming_records_with_state(self, commit_kafka_consumer_mock):
         """Every consumed kafka message should generate a valid singer RECORD and a STATE messages at the end
 
-        - Kafka commit should be called at startup because state is provided
-        - STATE should return the max offset and partition from the consumed messages"""
+        - Kafka commit should be called after every consumed message
+        - STATE should return insert timestamp from the local store"""
         # Set test inputs
         state = _get_resource_from_json('state-with-bookmark.json')
         stream = _get_resource_from_json('catalog.json')
@@ -335,16 +352,19 @@ class TestSync(object):
         # Set expected results on stdout
         exp_topic = self.config['topic']
         exp_record_messages = kafka_messages
-        exp_state_messages = [{'dummy_topic': {'topic': 'dummy_topic', 'offset': 3, 'partition': 2}}]
+        exp_state_messages = [{'dummy_topic': {'timestamp': 123456}}]
 
         # Run test
-        sync_stdout = _run_sync(self.config, state, stream, kafka_messages)
+        local_store = _read_kafka_topic(self.config, state, stream, kafka_messages)
 
         # Compare actual to expected results
-        _assert_singer_messages_on_stdout_equal(sync_stdout, exp_topic, exp_record_messages, exp_state_messages)
+        _assert_singer_messages_in_local_store_equal(local_store,
+                                                     exp_topic,
+                                                     exp_record_messages,
+                                                     exp_state_messages)
 
         # Kafka commit should be called once because state is provided
-        assert commit_kafka_consumer_mock.call_count == 1
+        assert commit_kafka_consumer_mock.call_count == 3
 
 
 if __name__ == '__main__':
