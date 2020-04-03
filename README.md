@@ -42,21 +42,32 @@ or
 
 ```
 {
-  "group_id": "1",
   "bootstrap_servers": "foo.com,bar.com",
-  "consumer_timeout_ms": 10000,
-  "session_timeout_ms": 30000,
-  "heartbeat_interval_ms": 10000,
-  "max_poll_interval_ms": 300000,
-  "topic": "messages",
+  "group_id": "my_group",
+  "topic": "my_topic",
   "primary_keys": {
     "id": "$.jsonpath.to.primary_key"
   }
 }
 ```
 
-`consumer_timeout_ms` , `session_timeout_ms` , `heartbeat_interval_ms` and `max_poll_interval_ms` are optional
-parameters and set to the default values in the example above .
+Full list of options in `config.json`:
+
+| Property                            | Type    | Required?  | Description                                                   |
+|-------------------------------------|---------|------------|---------------------------------------------------------------|
+| bootstrap_servers                   | String  | Yes        | `host[:port]` string (or list of comma separated `host[:port]` strings) that the consumer should contact to bootstrap initial cluster metadata. |
+| group_id                            | String  | Yes        | The name of the consumer group to join for dynamic partition assignment (if enabled), and to use for fetching and committing offsets. |
+| topic                               | String  | Yes        | Name of kafka topics to subscribe to |
+| primary_keys                        | Object  |            | Optionally you can define primary key for the consumed messages. It requires a column name and JSONPath selector to extract the value from the kafka messages. The extracted column will be added to every output singer message. |
+| max_runtime_ms                      | Integer |            | (Default: 300000) The maximum time for the tap to collect new messages from Kafka topic. If this time exceeds it will flush the batch and close kafka connection. |
+| batch_size_rows                     | Integer |            | (Default: 1000) Consumed kafka messages are transformed to batches and batches written to STDOUT in singer message format *only* when the batch is full. Set this value low to have more realtime experience. |
+| batch_flush_interval_ms             | Integer |            | (Default: 60000) The maximum delay between flushing batches. Exceeding this time will force flushing singer messages to STDOUT even if the batch is not full. |
+| consumer_timeout_ms                 | Integer |            | (Default: 10000) KafkaConsumer setting. Number of milliseconds to block during message iteration before raising StopIteration            |
+| session_timeout_ms                  | Integer |            | (Default: 30000) KafkaConsumer setting. The timeout used to detect failures when using Kafka’s group management facilities. |                                      |
+| heartbeat_interval_ms               | Integer |            | (Default: 10000) KafkaConsumer setting. The expected time in milliseconds between heartbeats to the consumer coordinator when using Kafka’s group management facilities. |
+| max_poll_interval_ms                | Integer |            | (Default: 300000) KafkaConsumer setting. The maximum delay between invocations of poll() when using consumer group management. |
+| local_store_dir                     | String  |            | (Default: current working dir) tap-kafka maintains an intermediate file based local storage. Every consumed message first added into this store and periodically flushing the content to STDOUT for other singer components. This mechanism allows to send commit messages quickly to Kafka brokers and avoid unexpected re-balancing caused by long running message consumptions. |
+
 
 This tap reads Kafka messages and generating singer compatible SCHEMA and RECORD messages in the following format.
 
@@ -72,7 +83,7 @@ This tap reads Kafka messages and generating singer compatible SCHEMA and RECORD
 ### Run the tap in Discovery Mode
 
 ```
-tap-kafka --config config.json --discover                # Should dump a Catalog to sdtout
+tap-kafka --config config.json --discover                # Should dump a Catalog to stdout
 tap-kafka --config config.json --discover > catalog.json # Capture the Catalog
 ```
 

@@ -1,1 +1,1 @@
-{"bookmarks":  {"dummy_topic": {"topic": "dummy_topic", "offset": 3, "partition": 2}}}
+{"bookmarks":  {"dummy_topic": {"timestamp": 123456}}}

@@ -19,7 +19,8 @@ setup(name='pipelinewise-tap-kafka',
       install_requires=[
           'kafka-python==2.0.1',
           'pipelinewise-singer-python==1.*',
-          'jsonpath_ng==1.4.3'
+          'jsonpath_ng==1.4.3',
+          'filelock==3.0.12'
       ],
       extras_require={
           "test": [
