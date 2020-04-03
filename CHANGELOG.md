@@ -1,3 +1,10 @@
+3.0.0 (2020-04-03)
+-------------------
+
+- Add local storage of consumed messages and instant commit kafka offsets
+- Add more configurable options: `consumer_timeout_ms`, `session_timeout_ms`, `heartbeat_interval_ms`, `max_poll_interval_ms`
+- Add two new fixed output columns: `MESSAGE_PARTITION` and `MESSAGE_OFFSET`
+
 2.1.1 (2020-03-23)
 -------------------
 
