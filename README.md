@@ -65,6 +65,7 @@ Full list of options in `config.json`:
 | consumer_timeout_ms                 | Integer |            | (Default: 10000) KafkaConsumer setting. Number of milliseconds to block during message iteration before raising StopIteration            |
 | session_timeout_ms                  | Integer |            | (Default: 30000) KafkaConsumer setting. The timeout used to detect failures when using Kafka’s group management facilities. |                                      |
 | heartbeat_interval_ms               | Integer |            | (Default: 10000) KafkaConsumer setting. The expected time in milliseconds between heartbeats to the consumer coordinator when using Kafka’s group management facilities. |
+| max_poll_records                    | Integer |            | (Default: 500) KafkaConsumer setting. The maximum number of records returned in a single call to poll(). |
 | max_poll_interval_ms                | Integer |            | (Default: 300000) KafkaConsumer setting. The maximum delay between invocations of poll() when using consumer group management. |
 | local_store_dir                     | String  |            | (Default: current working dir) tap-kafka maintains an intermediate file based local storage. Every consumed message first added into this store and periodically flushing the content to STDOUT for other singer components. This mechanism allows to send commit messages quickly to Kafka brokers and avoid unexpected re-balancing caused by long running message consumptions. |
 
