@@ -128,6 +128,7 @@ class TestSync(object):
             'consumer_timeout_ms': tap_kafka.DEFAULT_CONSUMER_TIMEOUT_MS,
             'session_timeout_ms': tap_kafka.DEFAULT_SESSION_TIMEOUT_MS,
             'heartbeat_interval_ms': tap_kafka.DEFAULT_HEARTBEAT_INTERVAL_MS,
+            'max_poll_records': tap_kafka.DEFAULT_MAX_POLL_RECORDS,
             'max_poll_interval_ms': tap_kafka.DEFAULT_MAX_POLL_INTERVAL_MS,
             'encoding': tap_kafka.DEFAULT_ENCODING,
             'local_store_dir': tap_kafka.DEFAULT_LOCAL_STORE_DIR
@@ -148,7 +149,8 @@ class TestSync(object):
             'consumer_timeout_ms': 1111,
             'session_timeout_ms': 2222,
             'heartbeat_interval_ms': 3333,
-            'max_poll_interval_ms': 4444,
+            'max_poll_records': 4444,
+            'max_poll_interval_ms': 5555,
             'encoding': 'iso-8859-1',
             'local_store_dir': '/tmp/local-store'
         }
@@ -165,7 +167,8 @@ class TestSync(object):
             'consumer_timeout_ms': 1111,
             'session_timeout_ms': 2222,
             'heartbeat_interval_ms': 3333,
-            'max_poll_interval_ms': 4444,
+            'max_poll_records': 4444,
+            'max_poll_interval_ms': 5555,
             'encoding': 'iso-8859-1',
             'local_store_dir': '/tmp/local-store'
         }

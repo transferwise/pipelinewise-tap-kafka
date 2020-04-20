@@ -71,6 +71,7 @@ def init_kafka_consumer(kafka_config):
         consumer_timeout_ms=kafka_config['consumer_timeout_ms'],
         session_timeout_ms=kafka_config['session_timeout_ms'],
         heartbeat_interval_ms=kafka_config['heartbeat_interval_ms'],
+        max_poll_records=kafka_config['max_poll_records'],
         max_poll_interval_ms=kafka_config['max_poll_interval_ms'],
 
         # Non-configurable parameters
