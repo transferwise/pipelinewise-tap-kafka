@@ -107,6 +107,7 @@ class TestSync(object):
             'topic': 'dummy_topic',
             'primary_keys': {},
             'max_runtime_ms': tap_kafka.DEFAULT_MAX_RUNTIME_MS,
+            'commit_interval_ms': tap_kafka.DEFAULT_COMMIT_INTERVAL_MS,
             'batch_size_rows': tap_kafka.DEFAULT_BATCH_SIZE_ROWS
         }
 
@@ -123,6 +124,7 @@ class TestSync(object):
             'bootstrap_servers': ['server1', 'server2', 'server3'],
             'primary_keys': {},
             'max_runtime_ms': tap_kafka.DEFAULT_MAX_RUNTIME_MS,
+            'commit_interval_ms': tap_kafka.DEFAULT_COMMIT_INTERVAL_MS,
             'batch_size_rows': tap_kafka.DEFAULT_BATCH_SIZE_ROWS,
             'batch_flush_interval_ms': tap_kafka.DEFAULT_BATCH_FLUSH_INTERVAL_MS,
             'consumer_timeout_ms': tap_kafka.DEFAULT_CONSUMER_TIMEOUT_MS,
@@ -131,7 +133,8 @@ class TestSync(object):
             'max_poll_records': tap_kafka.DEFAULT_MAX_POLL_RECORDS,
             'max_poll_interval_ms': tap_kafka.DEFAULT_MAX_POLL_INTERVAL_MS,
             'encoding': tap_kafka.DEFAULT_ENCODING,
-            'local_store_dir': tap_kafka.DEFAULT_LOCAL_STORE_DIR
+            'local_store_dir': tap_kafka.DEFAULT_LOCAL_STORE_DIR,
+            'local_store_batch_size_rows': tap_kafka.DEFAULT_LOCAL_STORE_BATCH_SIZE_ROWS
         }
 
     def test_generate_config_with_custom_parameters(self):
@@ -144,6 +147,7 @@ class TestSync(object):
                 'id': '$.jsonpath.to.primary_key'
             },
             'max_runtime_ms': 1111,
+            'commit_interval_ms': 10000,
             'batch_size_rows': 2222,
             'batch_flush_interval_ms': 3333,
             'consumer_timeout_ms': 1111,
@@ -152,7 +156,8 @@ class TestSync(object):
             'max_poll_records': 4444,
             'max_poll_interval_ms': 5555,
             'encoding': 'iso-8859-1',
-            'local_store_dir': '/tmp/local-store'
+            'local_store_dir': '/tmp/local-store',
+            'local_store_batch_size_rows': 500
         }
         assert tap_kafka.generate_config(custom_config) == {
             'topic': 'my_topic',
@@ -162,6 +167,7 @@ class TestSync(object):
                 'id': '$.jsonpath.to.primary_key'
             },
             'max_runtime_ms': 1111,
+            'commit_interval_ms': 10000,
             'batch_size_rows': 2222,
             'batch_flush_interval_ms': 3333,
             'consumer_timeout_ms': 1111,
@@ -170,7 +176,8 @@ class TestSync(object):
             'max_poll_records': 4444,
             'max_poll_interval_ms': 5555,
             'encoding': 'iso-8859-1',
-            'local_store_dir': '/tmp/local-store'
+            'local_store_dir': '/tmp/local-store',
+            'local_store_batch_size_rows': 500
         }
 
     def test_generate_schema_with_no_pk(self):
@@ -317,7 +324,7 @@ class TestSync(object):
     def test_consuming_records_with_no_state(self, commit_kafka_consumer_mock):
         """Every consumed kafka message should generate a valid singer RECORD and a STATE messages at the end
 
-        - Kafka commit should be called after every consumed message
+        - Kafka commit should be called once at the end
         - STATE should return insert timestamp from the local store"""
         # Set test inputs
         state = {}
@@ -338,14 +345,15 @@ class TestSync(object):
                                                      exp_record_messages,
                                                      exp_state_messages)
 
-        # Kafka commit should be called because state is NOT provided
-        assert commit_kafka_consumer_mock.call_count == 3
+        # Kafka commit should be called once at the end, because
+        # every message fits into one persisting batch size
+        assert commit_kafka_consumer_mock.call_count == 1
 
     @patch('tap_kafka.sync.commit_kafka_consumer')
     def test_consuming_records_with_state(self, commit_kafka_consumer_mock):
         """Every consumed kafka message should generate a valid singer RECORD and a STATE messages at the end
 
-        - Kafka commit should be called after every consumed message
+        - Kafka commit should be called once at the end
         - STATE should return insert timestamp from the local store"""
         # Set test inputs
         state = _get_resource_from_json('state-with-bookmark.json')
@@ -366,8 +374,9 @@ class TestSync(object):
                                                      exp_record_messages,
                                                      exp_state_messages)
 
-        # Kafka commit should be called once because state is provided
-        assert commit_kafka_consumer_mock.call_count == 3
+        # Kafka commit should be called once at the end, because
+        # every message fits into one persisting batch size
+        assert commit_kafka_consumer_mock.call_count == 1
 
 
 if __name__ == '__main__':

@@ -56,6 +56,7 @@ def init_local_store(kafka_config):
     LOGGER.info('Initialising local store at %s', kafka_config['local_store_dir'])
     return LocalStore(
         directory=kafka_config['local_store_dir'],
+        batch_size_rows=kafka_config['local_store_batch_size_rows'],
         topic=kafka_config['topic'])
 
 
@@ -103,9 +104,10 @@ def kafka_message_to_singer_record(message, topic, primary_keys):
 def consume_kafka_message(message, topic, primary_keys, local_store):
     """Insert single kafka message into the internal store"""
     singer_record = kafka_message_to_singer_record(message, topic, primary_keys)
-    insert_ts = local_store.insert(singer.format_message(singer.RecordMessage(stream=topic,
-                                                                              record=singer_record,
-                                                                              time_extracted=utils.now())))
+    singer_record_message = singer.format_message(singer.RecordMessage(stream=topic,
+                                                                       record=singer_record,
+                                                                       time_extracted=utils.now()))
+    insert_ts = local_store.insert(singer_record_message)
     return insert_ts
 
 
@@ -124,11 +126,13 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
     topic = kafka_config['topic']
     primary_keys = kafka_config['primary_keys']
     max_runtime_ms = kafka_config['max_runtime_ms']
+    commit_interval_ms = kafka_config['commit_interval_ms']
     batch_size_rows = kafka_config['batch_size_rows']
     local_store_cleanup_ts = time.time()
     received_messages = 0
     last_consumed_ts = 0
     start_time = 0
+    last_commit_time = 0
 
     # Send singer ACTIVATE message
     send_activate_version_message(state, topic)
@@ -144,11 +148,19 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         if not start_time:
             start_time = time.time()
 
+        # Initialise the last_commit_time after the first message
+        if not last_commit_time:
+            last_commit_time = time.time()
+
         # Generate and insert singer message into local store
         last_consumed_ts = consume_kafka_message(message, topic, primary_keys, local_store)
 
-        # Commit offsets because we processed the message
-        commit_kafka_consumer(consumer, message.topic, message.partition, message.offset)
+        # Commit periodically
+        if last_consumed_ts - last_commit_time > commit_interval_ms / 1000:
+            # Persist everything in the local store to disk and send commit message to kafka
+            local_store.persist_messages()
+            commit_kafka_consumer(consumer, message.topic, message.partition, message.offset)
+            last_commit_time = time.time()
 
         # Log message stats periodically
         received_messages += 1
@@ -158,7 +170,7 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
 
         # Every UPDATE_BOOKMARK_PERIOD, update the bookmark and send state message
         if received_messages % UPDATE_BOOKMARK_PERIOD == 0:
-            state = update_bookmark(state, topic, last_consumed_ts)
+            state = update_bookmark(state, topic, local_store.last_persisted_ts)
             LOGGER.debug("Updating bookmark and inserting to local store: %s", state)
             local_store.insert(singer.format_message(singer.StateMessage(value=copy.deepcopy(state))))
 
@@ -166,7 +178,7 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         if received_messages % batch_size_rows == 0:
             LOGGER.debug('Sending %d unprocessed messages from local store...', batch_size_rows)
             local_store.flush_after(last_flush_ts)
-            last_flush_ts = last_consumed_ts
+            last_flush_ts = local_store.last_persistested_ts
 
         now = time.time()
         # Every CLEANUP_LOCAL_STORE_INTERVAL delete the processed items from the local store
@@ -192,6 +204,8 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
     if last_consumed_ts:
         state = update_bookmark(state, topic, last_consumed_ts)
         local_store.insert(singer.format_message(singer.StateMessage(value=copy.deepcopy(state))))
+        local_store.persist_messages()
+        commit_kafka_consumer(consumer, message.topic, message.partition, message.offset)
 
     return last_flush_ts
 

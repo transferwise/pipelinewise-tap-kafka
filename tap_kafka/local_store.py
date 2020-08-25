@@ -12,8 +12,9 @@ filelock.logger().setLevel(logging.WARNING)
 
 
 class LocalStore:
-    # pylint: disable=too-many-arguments
-    def __init__(self, directory, topic, prefix='tap-kafka-local-store-', postfix='', extension='db'):
+    # pylint: disable=too-many-arguments,too-many-instance-attributes
+    def __init__(self, directory, topic, prefix='tap-kafka-local-store-', postfix='', extension='db',
+                 batch_size_rows=1000):
         """Initialize local storage
 
         :param directory: directory path
@@ -21,6 +22,7 @@ class LocalStore:
         :param prefix: Optional file name prefix
         :param postfix: Optional file name postfix
         :param extension: Optional file name extension
+        :param batch_size_rows: Number of messages to persist one disk in one go
         """
         self.directory = os.path.expanduser(directory)
         self.topic = topic
@@ -28,6 +30,10 @@ class LocalStore:
         self.path = os.path.join(directory, self.name)
         self.temp = f'{self.path}.temp'
         self.lock = f'{self.path}.lock'
+        self.messages_to_persist = []
+        self.batch_size_rows = batch_size_rows
+        self.last_inserted_ts = 0
+        self.last_persisted_ts = 0
 
         # Create the directory if not exists
         if not os.path.exists(directory):
@@ -77,6 +83,8 @@ class LocalStore:
 
         This functions reads the entire file with low memory footprint
         and counts the number of newline characters"""
+        self.persist_messages()
+
         with FileLock(self.lock):
             try:
                 with open(self.path, 'r') as msf:
@@ -88,20 +96,40 @@ class LocalStore:
 
     def purge(self):
         """Delete every message from the store"""
+        self.messages_to_persist = []
+
         if os.path.exists(self.path):
             os.remove(self.path)
 
         if os.path.exists(self.lock):
             os.remove(self.lock)
 
-    def insert(self, message: str) -> float:
-        """Insert a new message with a generated timestamp
-        Returns the insert timestamp"""
+    def persist_messages(self) -> None:
+        """Persist messages in batch on disk
+        Returns the last timestamp of the last persisted message"""
         with FileLock(self.lock):
             with open(self.path, 'a+') as msf:
-                insert_ts = time.time()
-                msf.write(f'{insert_ts}:{message}' + '\n')
-        return insert_ts
+                for message in self.messages_to_persist:
+                    persisted_ts = time.time()
+                    msf.write(f'{persisted_ts}:{message}' + '\n')
+                    self.last_persisted_ts = persisted_ts
+
+        self.messages_to_persist = []
+
+        return self.last_persisted_ts
+
+    def insert(self, message: str) -> None:
+        """Insert a new message with a generated timestamp
+        Returns the last timestamp of the last inserted message"""
+        # Add to the in-memory batch to avoid too frequent I/O write
+        self.messages_to_persist.append(message)
+        self.last_inserted_ts = time.time()
+
+        # Write to disk if in-memory batch is full
+        if len(self.messages_to_persist) % self.batch_size_rows == 0:
+            self.persist_messages()
+
+        return self.last_inserted_ts
 
     def delete_before(self, timestamp: float) -> float:
         """Delete messages before a certain timestamp
@@ -110,6 +138,8 @@ class LocalStore:
         Once every required line copied, it swaps the files.
 
         Returns the timestamp of last delete message"""
+        self.persist_messages()
+
         last_timestamp = timestamp
         with FileLock(self.lock):
             with open(self.path, 'r') as msf:
@@ -131,6 +161,8 @@ class LocalStore:
         """Delete message before bookmarked timestamp in state
 
         Returns the timestamp of last delete message"""
+        self.persist_messages()
+
         timestamp = singer.get_bookmark(state, self.topic, 'timestamp')
         if timestamp is not None:
             return self.delete_before(timestamp)
@@ -140,6 +172,8 @@ class LocalStore:
         """Flush every message after a certain timestamp to stdout
 
         Returns the timestamp of last flushed message"""
+        self.persist_messages()
+
         pos = timestamp
         with FileLock(self.lock):
             with open(self.path, 'r') as msf:
@@ -154,6 +188,8 @@ class LocalStore:
         """Flush every message after a singer bookmark
 
         Returns the timestamp of last flushed message"""
+        self.persist_messages()
+
         timestamp = singer.get_bookmark(state, self.topic, 'timestamp')
         if timestamp is not None:
             return self.flush_after(timestamp)
@@ -161,6 +197,8 @@ class LocalStore:
 
     def flush_all(self):
         """Flush every message to stdout"""
+        self.persist_messages()
+
         with FileLock(self.lock):
             with open(self.path, 'r') as msf:
                 for line in msf:
