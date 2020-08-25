@@ -100,3 +100,23 @@ class TestLocalStore:
         # Clear and test if it's empty
         local_store.purge()
         assert local_store.count_all() == 0
+
+    def test_insert_with_custom_batch(self):
+        """Validate if using custom batch size rows works as expected"""
+        local_store = LocalStore(self.test_dir, 'my_stream_name', batch_size_rows=5)
+        local_store.purge()
+
+        # Inserting 12 lines, should be persisted in multiple batches
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_1"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_2"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_3"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_4"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_5"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_6"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_7"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_8"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_9"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_10"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_11"}}')
+        local_store.insert('{"type":"RECORD","value":{"col_1":"value_12"}}')
+        assert local_store.count_all() == 12
