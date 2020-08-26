@@ -71,7 +71,7 @@ class LocalStore:
         Returns timestamp as float and do automatic type conversion if possible,
         otherwise throws InvalidBookmarkException"""
         try:
-            timestamp = float(singer.get_bookmark(state, topic, 'timestamp'))
+            timestamp = float(singer.get_bookmark(state, topic, 'timestamp') or 0)
         except ValueError:
             raise InvalidBookmarkException(f'The timestamp in the bookmark for {topic} stream is not numeric')
 
