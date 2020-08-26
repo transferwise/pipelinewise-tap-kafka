@@ -124,7 +124,7 @@ class TestLocalStore:
         assert local_store.count_all() == 12
 
     def test_get_timestamp_from_state(self):
-        """Timestamp in the state file should be auto-converted to
+        """Timestamp in the bookmark should be auto-converted to
         float whenever it's possible"""
         local_store = LocalStore(self.test_dir, 'my_stream_name')
         local_store.purge()

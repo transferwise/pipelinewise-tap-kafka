@@ -323,7 +323,7 @@ class TestSync(object):
                 'test-topic-1': {'timestamp': 222}}}
 
     def test_update_bookmark__not_numeric(self):
-        """Timestamp in the state file should be auto-converted to
+        """Timestamp in the bookmark should be auto-converted to
         float whenever it's possible"""
         input_state = {'bookmarks': {'test-topic-updated': {'timestamp': 111}}}
 
