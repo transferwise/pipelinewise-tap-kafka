@@ -2,7 +2,8 @@ import os
 import time
 import pytest
 
-from tap_kafka.local_store import LocalStore, InvalidStateFileException
+from tap_kafka.local_store import LocalStore
+from tap_kafka.errors import InvalidStateFileException
 
 
 class TestLocalStore:
@@ -123,7 +124,8 @@ class TestLocalStore:
         assert local_store.count_all() == 12
 
     def test_get_timestamp_from_state(self):
-        """."""
+        """Timestamp in the state file should be auto-converted to
+        float whenever it's possible"""
         local_store = LocalStore(self.test_dir, 'my_stream_name')
         local_store.purge()
 

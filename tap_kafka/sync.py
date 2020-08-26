@@ -9,6 +9,8 @@ from tap_kafka.local_store import LocalStore
 from kafka import KafkaConsumer, OffsetAndMetadata, TopicPartition
 from jsonpath_ng import parse
 
+from .errors import InvalidStateFileException
+
 LOGGER = singer.get_logger('tap_kafka')
 
 LOG_MESSAGES_PERIOD = 1000          # Print log messages to stderr after every nth messages
@@ -49,7 +51,12 @@ def send_schema_message(stream):
 
 def update_bookmark(state, topic, timestamp):
     """Update bookmark with a new timestamp"""
-    return singer.write_bookmark(state, topic, 'timestamp', timestamp or 0)
+    try:
+        timestamp = float(timestamp) if timestamp else 0
+    except ValueError:
+        raise InvalidStateFileException(f'The timestamp in the state file for {topic} stream is not numeric')
+
+    return singer.write_bookmark(state, topic, 'timestamp', timestamp)
 
 
 def init_local_store(kafka_config):

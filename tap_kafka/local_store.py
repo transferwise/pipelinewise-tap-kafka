@@ -7,16 +7,10 @@ import logging
 import filelock
 from filelock import FileLock
 
+from .errors import InvalidStateFileException
+
 # Set filelock logging less werbose
 filelock.logger().setLevel(logging.WARNING)
-
-
-class InvalidStateFileException(Exception):
-    """
-    Exception to raise when state file is not valid
-    """
-    def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
 
 
 class LocalStore:
