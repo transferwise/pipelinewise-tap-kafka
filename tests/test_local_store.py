@@ -1,7 +1,9 @@
 import os
 import time
+import pytest
 
 from tap_kafka.local_store import LocalStore
+from tap_kafka.errors import InvalidBookmarkException
 
 
 class TestLocalStore:
@@ -120,3 +122,37 @@ class TestLocalStore:
         local_store.insert('{"type":"RECORD","value":{"col_1":"value_11"}}')
         local_store.insert('{"type":"RECORD","value":{"col_1":"value_12"}}')
         assert local_store.count_all() == 12
+
+    def test_get_timestamp_from_state(self):
+        """Timestamp in the bookmark should be auto-converted to
+        float whenever it's possible"""
+        local_store = LocalStore(self.test_dir, 'my_stream_name')
+        local_store.purge()
+
+        state = {
+            'bookmarks': {
+                'stream_ts_as_number': {
+                    'timestamp': 1598434967.5782337
+                },
+                'stream_ts_as_string': {
+                    'timestamp': '1598434967.5782337'
+                },
+                'stream_ts_as_invalid_string': {
+                    'timestamp': 'this-is-not-numeric'
+                }
+            }
+        }
+
+        # Timestamp should be float
+        ts = local_store._get_timestamp_from_state(state, 'stream_ts_as_number')
+        assert isinstance(ts, float)
+        assert ts == 1598434967.5782337
+
+        # Timestamp should be converted from string to float
+        ts = local_store._get_timestamp_from_state(state, 'stream_ts_as_string')
+        assert isinstance(ts, float)
+        assert ts == 1598434967.5782337
+
+        # Timestamp that cannot be converted to float should raise exception
+        with pytest.raises(InvalidBookmarkException):
+            local_store._get_timestamp_from_state(state, 'stream_ts_as_invalid_string')

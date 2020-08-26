@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import unittest
+import pytest
 from unittest.mock import patch
 
 from io import StringIO
@@ -9,6 +10,7 @@ from io import StringIO
 import tap_kafka
 from tap_kafka import common
 from tap_kafka import sync
+from tap_kafka.errors import InvalidBookmarkException
 
 from tests.helper.parse_args_mock import ParseArgsMock
 from tests.helper.local_store_mock import LocalStoreMock
@@ -319,6 +321,19 @@ class TestSync(object):
             {'bookmarks': {
                 'test-topic-0': {'timestamp': 111},
                 'test-topic-1': {'timestamp': 222}}}
+
+    def test_update_bookmark__not_numeric(self):
+        """Timestamp in the bookmark should be auto-converted to
+        float whenever it's possible"""
+        input_state = {'bookmarks': {'test-topic-updated': {'timestamp': 111}}}
+
+        # Timestamp should be converted from string to float
+        assert sync.update_bookmark(input_state, 'test-topic-updated', '999.9999') == \
+            {'bookmarks': {'test-topic-updated': {'timestamp': 999.9999}}}
+
+        # Timestamp that cannot be converted to float should raise exception
+        with pytest.raises(InvalidBookmarkException):
+            sync.update_bookmark(input_state, 'test-topic-updated', 'this-is-not-numeric')
 
     @patch('tap_kafka.sync.commit_kafka_consumer')
     def test_consuming_records_with_no_state(self, commit_kafka_consumer_mock):

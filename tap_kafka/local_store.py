@@ -7,6 +7,8 @@ import logging
 import filelock
 from filelock import FileLock
 
+from .errors import InvalidBookmarkException
+
 # Set filelock logging less werbose
 filelock.logger().setLevel(logging.WARNING)
 
@@ -61,6 +63,19 @@ class LocalStore:
         componets and returns as list of two items.
         """
         return line.split(':', 1)
+
+    @staticmethod
+    def _get_timestamp_from_state(state: dict, topic: str):
+        """Get the timestamp for a specific topic from the state dict
+
+        Returns timestamp as float and do automatic type conversion if possible,
+        otherwise throws InvalidBookmarkException"""
+        try:
+            timestamp = float(singer.get_bookmark(state, topic, 'timestamp'))
+        except ValueError:
+            raise InvalidBookmarkException(f'The timestamp in the bookmark for {topic} stream is not numeric')
+
+        return timestamp
 
     @staticmethod
     def _flush(message: str):
@@ -163,7 +178,7 @@ class LocalStore:
         Returns the timestamp of last delete message"""
         self.persist_messages()
 
-        timestamp = singer.get_bookmark(state, self.topic, 'timestamp')
+        timestamp = self._get_timestamp_from_state(state, self.topic)
         if timestamp is not None:
             return self.delete_before(timestamp)
         return 0
@@ -190,7 +205,7 @@ class LocalStore:
         Returns the timestamp of last flushed message"""
         self.persist_messages()
 
-        timestamp = singer.get_bookmark(state, self.topic, 'timestamp')
+        timestamp = self._get_timestamp_from_state(state, self.topic)
         if timestamp is not None:
             return self.flush_after(timestamp)
         return 0
