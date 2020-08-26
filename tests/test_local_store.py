@@ -133,10 +133,10 @@ class TestLocalStore:
                     'timestamp': 1598434967.5782337
                 },
                 'stream_ts_as_string': {
-                    'timestamp': "1598434967.5782337"
+                    'timestamp': '1598434967.5782337'
                 },
                 'stream_ts_as_invalid_string': {
-                    'timestamp': "this-is-not-numeric"
+                    'timestamp': 'this-is-not-numeric'
                 }
             }
         }
