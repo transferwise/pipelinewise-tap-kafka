@@ -3,7 +3,7 @@ import time
 import pytest
 
 from tap_kafka.local_store import LocalStore
-from tap_kafka.errors import InvalidStateFileException
+from tap_kafka.errors import InvalidBookmarkException
 
 
 class TestLocalStore:
@@ -154,5 +154,5 @@ class TestLocalStore:
         assert ts == 1598434967.5782337
 
         # Timestamp that cannot be converted to float should raise exception
-        with pytest.raises(InvalidStateFileException):
+        with pytest.raises(InvalidBookmarkException):
             local_store._get_timestamp_from_state(state, 'stream_ts_as_invalid_string')

@@ -7,7 +7,7 @@ import logging
 import filelock
 from filelock import FileLock
 
-from .errors import InvalidStateFileException
+from .errors import InvalidBookmarkException
 
 # Set filelock logging less werbose
 filelock.logger().setLevel(logging.WARNING)
@@ -69,11 +69,11 @@ class LocalStore:
         """Get the timestamp for a specific topic from the state dict
 
         Returns timestamp as float and do automatic type conversion if possible,
-        otherwise throws InvalidStateFileException"""
+        otherwise throws InvalidBookmarkException"""
         try:
             timestamp = float(singer.get_bookmark(state, topic, 'timestamp'))
         except ValueError:
-            raise InvalidStateFileException(f'The timestamp in the state file for {topic} stream is not numeric')
+            raise InvalidBookmarkException(f'The timestamp in the bookmark for {topic} stream is not numeric')
 
         return timestamp
 

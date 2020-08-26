@@ -1,4 +1,4 @@
-class InvalidStateFileException(Exception):
+class InvalidBookmarkException(Exception):
     """
     Exception to raise when state file is not valid
     """

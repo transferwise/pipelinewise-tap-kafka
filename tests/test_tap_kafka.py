@@ -10,7 +10,7 @@ from io import StringIO
 import tap_kafka
 from tap_kafka import common
 from tap_kafka import sync
-from tap_kafka.errors import InvalidStateFileException
+from tap_kafka.errors import InvalidBookmarkException
 
 from tests.helper.parse_args_mock import ParseArgsMock
 from tests.helper.local_store_mock import LocalStoreMock
@@ -332,7 +332,7 @@ class TestSync(object):
             {'bookmarks': {'test-topic-updated': {'timestamp': 999.9999}}}
 
         # Timestamp that cannot be converted to float should raise exception
-        with pytest.raises(InvalidStateFileException):
+        with pytest.raises(InvalidBookmarkException):
             sync.update_bookmark(input_state, 'test-topic-updated', 'this-is-not-numeric')
 
     @patch('tap_kafka.sync.commit_kafka_consumer')

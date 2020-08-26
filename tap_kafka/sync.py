@@ -9,7 +9,7 @@ from tap_kafka.local_store import LocalStore
 from kafka import KafkaConsumer, OffsetAndMetadata, TopicPartition
 from jsonpath_ng import parse
 
-from .errors import InvalidStateFileException
+from .errors import InvalidBookmarkException
 
 LOGGER = singer.get_logger('tap_kafka')
 
@@ -54,7 +54,7 @@ def update_bookmark(state, topic, timestamp):
     try:
         timestamp = float(timestamp) if timestamp else 0
     except ValueError:
-        raise InvalidStateFileException(f'The timestamp in the state file for {topic} stream is not numeric')
+        raise InvalidBookmarkException(f'The timestamp in the bookmark for {topic} stream is not numeric')
 
     return singer.write_bookmark(state, topic, 'timestamp', timestamp)
 
