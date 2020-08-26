@@ -156,3 +156,26 @@ class TestLocalStore:
         # Timestamp that cannot be converted to float should raise exception
         with pytest.raises(InvalidBookmarkException):
             local_store._get_timestamp_from_state(state, 'stream_ts_as_invalid_string')
+
+    def test_get_timestamp_from_empty_state(self):
+        """Timestamp in the bookmark should be auto-converted to
+        float whenever it's possible"""
+        local_store = LocalStore(self.test_dir, 'my_stream_name')
+        local_store.purge()
+
+        state = {
+            'bookmarks': {
+                'my_stream': {
+                    'unknown_bookmark': 1598434967.5782337
+                }
+            }
+        }
+
+        # Should return zero if timestamp not exist in stream bookmark
+        assert local_store._get_timestamp_from_state(state, 'my_stream') == 0
+
+        # Should return zero if stream not exist in bookmark
+        assert local_store._get_timestamp_from_state(state, 'not_existing_stream') == 0
+
+        # Should return zero if bookmarks not exist in state
+        assert local_store._get_timestamp_from_state({}, 'not_existing_stream') == 0
