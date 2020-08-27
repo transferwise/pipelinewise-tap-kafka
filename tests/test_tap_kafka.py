@@ -4,6 +4,7 @@ import json
 import unittest
 import pytest
 from unittest.mock import patch
+from collections import namedtuple
 
 from io import StringIO
 
@@ -392,6 +393,67 @@ class TestSync(object):
         # Kafka commit should be called once at the end, because
         # every message fits into one persisting batch size
         assert commit_kafka_consumer_mock.call_count == 1
+
+    def test_kafka_message_to_singer_record(self):
+        """Validate if kafka messages converted to singer messages correctly"""
+        KafkaMessage = namedtuple('KafkaMessage', 'value timestamp offset partition')
+        topic = 'test-topic'
+
+        # Converting without primary key
+        message = KafkaMessage(value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+                               timestamp=123456789,
+                               offset=1234,
+                               partition=0)
+        primary_keys = {}
+        assert sync.kafka_message_to_singer_record(message, topic, primary_keys) == {
+            'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+            'message_timestamp': 123456789,
+            'message_offset': 1234,
+            'message_partition': 0
+        }
+
+        # Converting with primary key
+        message = KafkaMessage(value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+                               timestamp=123456789,
+                               offset=1234,
+                               partition=0)
+        primary_keys = {'id': '/id'}
+        assert sync.kafka_message_to_singer_record(message, topic, primary_keys) == {
+            'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+            'id': 1,
+            'message_timestamp': 123456789,
+            'message_offset': 1234,
+            'message_partition': 0
+        }
+
+        # Converting with nested and multiple primary keys
+        message = KafkaMessage(value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+                               timestamp=123456789,
+                               offset=1234,
+                               partition=0)
+        primary_keys = {'id': '/id', 'y': '/data/y'}
+        assert sync.kafka_message_to_singer_record(message, topic, primary_keys) == {
+            'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+            'id': 1,
+            'y': 'value-y',
+            'message_timestamp': 123456789,
+            'message_offset': 1234,
+            'message_partition': 0
+        }
+
+        # Converting with not existing primary keys
+        message = KafkaMessage(value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+                               timestamp=123456789,
+                               offset=1234,
+                               partition=0)
+        primary_keys = {'id': '/id', 'not-existing-key': '/path/not/exists'}
+        assert sync.kafka_message_to_singer_record(message, topic, primary_keys) == {
+            'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+            'id': 1,
+            'message_timestamp': 123456789,
+            'message_offset': 1234,
+            'message_partition': 0
+        }
 
 
 if __name__ == '__main__':
