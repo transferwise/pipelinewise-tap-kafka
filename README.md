@@ -46,7 +46,7 @@ or
   "group_id": "my_group",
   "topic": "my_topic",
   "primary_keys": {
-    "id": "$.jsonpath.to.primary_key"
+    "id": "/path/to/primary_key"
   }
 }
 ```
@@ -58,7 +58,7 @@ Full list of options in `config.json`:
 | bootstrap_servers                   | String  | Yes        | `host[:port]` string (or list of comma separated `host[:port]` strings) that the consumer should contact to bootstrap initial cluster metadata. |
 | group_id                            | String  | Yes        | The name of the consumer group to join for dynamic partition assignment (if enabled), and to use for fetching and committing offsets. |
 | topic                               | String  | Yes        | Name of kafka topics to subscribe to |
-| primary_keys                        | Object  |            | Optionally you can define primary key for the consumed messages. It requires a column name and JSONPath selector to extract the value from the kafka messages. The extracted column will be added to every output singer message. |
+| primary_keys                        | Object  |            | Optionally you can define primary key for the consumed messages. It requires a column name and `/slashed/paths` ala xpath selector to extract the value from the kafka messages. The extracted column will be added to every output singer message. |
 | max_runtime_ms                      | Integer |            | (Default: 300000) The maximum time for the tap to collect new messages from Kafka topic. If this time exceeds it will flush the batch and close kafka connection. |
 | batch_size_rows                     | Integer |            | (Default: 1000) Consumed kafka messages are transformed to batches and batches written to STDOUT in singer message format *only* when the batch is full. Set this value low to have more realtime experience. |
 | commit_interval_ms                  | Integer |            | (Default: 5000) Number of milliseconds between two commits. This is different than the kafka auto commit feature. Tap-kafka sends commit messages automatically but only when the data consumed successfully and persisted to local store. |

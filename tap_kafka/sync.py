@@ -2,12 +2,12 @@
 import json
 import time
 import copy
+import dpath.util
 
 import singer
 from singer import utils, metadata
 from tap_kafka.local_store import LocalStore
 from kafka import KafkaConsumer, OffsetAndMetadata, TopicPartition
-from jsonpath_ng import parse
 
 from .errors import InvalidBookmarkException
 
@@ -101,9 +101,12 @@ def kafka_message_to_singer_record(message, topic, primary_keys):
     # Add primary keys to the record message
     for key in primary_keys:
         pk_selector = primary_keys[key]
-        match = parse(pk_selector).find(message.value)
-        if match:
-            record[key] = match[0].value
+        try:
+            record[key] = dpath.util.get(message.value, pk_selector)
+        # Do not fail if PK not found in the message.
+        # Continue without adding the extracted PK to the message
+        except KeyError:
+            pass
 
     return record
 
@@ -185,7 +188,7 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         if received_messages % batch_size_rows == 0:
             LOGGER.debug('Sending %d unprocessed messages from local store...', batch_size_rows)
             local_store.flush_after(last_flush_ts)
-            last_flush_ts = local_store.last_persistested_ts
+            last_flush_ts = local_store.last_persisted_ts
 
         now = time.time()
         # Every CLEANUP_LOCAL_STORE_INTERVAL delete the processed items from the local store
