@@ -441,7 +441,7 @@ class TestSync(object):
             'message_partition': 0
         }
 
-        # Converting with nested and multiple primary keys
+        # Converting with not existing primary keys
         message = KafkaMessage(value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
                                timestamp=123456789,
                                offset=1234,
