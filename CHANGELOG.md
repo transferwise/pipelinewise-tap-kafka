@@ -1,3 +1,10 @@
+4.0.0 (2020-08-27)
+-------------------
+
+- Improve the performance of persisting kafka message if the local store cannot perform frequent file appends and when it's causing high I/O issues   
+- Switching from `jsonpath-ng` to `dpath` python library to improve the performance of extracting primary keys
+- Change the syntax of `primary_keys` from JSONPath to `/slashed/paths` ala XPath
+
 3.1.0 (2020-04-20)
 -------------------
 
