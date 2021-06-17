@@ -221,7 +221,9 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         state = update_bookmark(state, topic, last_consumed_ts)
         local_store.insert(singer.format_message(singer.StateMessage(value=copy.deepcopy(state))))
         local_store.persist_messages()
-        commit_kafka_consumer(consumer, message.topic, message.partition, message.offset)
+        for partition, current_message in current_message_per_partition.items():
+            commit_kafka_consumer(consumer, current_message.topic, current_message.partition, current_message.offset)
+        current_message_per_partition = dict()  # reset
 
     return last_flush_ts
 
