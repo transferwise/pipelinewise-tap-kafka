@@ -147,6 +147,8 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
     # Send singer ACTIVATE message
     send_activate_version_message(state, topic)
 
+    current_message_per_partition = dict()
+
     # Start consuming kafka messages
     last_flush_ts = float(singer.get_bookmark(state, topic, 'timestamp') or 0)
     for message in consumer:
@@ -165,11 +167,15 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         # Generate and insert singer message into local store
         last_consumed_ts = consume_kafka_message(message, topic, primary_keys, local_store)
 
+        current_message_per_partition[message.partition] = message
+
         # Commit periodically
         if last_consumed_ts - last_commit_time > commit_interval_ms / 1000:
             # Persist everything in the local store to disk and send commit message to kafka
             local_store.persist_messages()
-            commit_kafka_consumer(consumer, message.topic, message.partition, message.offset)
+            for partition, current_message in current_message_per_partition.items():
+                commit_kafka_consumer(consumer, current_message.topic, current_message.partition, current_message.offset)
+            current_message_per_partition = dict()  # reset
             last_commit_time = time.time()
 
         # Log message stats periodically
