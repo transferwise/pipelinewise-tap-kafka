@@ -31,3 +31,4 @@ tmp
 # Docs
 docs/_build/
 docs/_templates/
+.python-version
