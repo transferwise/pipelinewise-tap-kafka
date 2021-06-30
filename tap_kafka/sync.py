@@ -11,7 +11,7 @@ from kafka import KafkaConsumer, OffsetAndMetadata, TopicPartition
 
 from .errors import InvalidBookmarkException
 
-LOGGER = singer.get_logger('tap_kafka')
+LOGGER = singer.get_logger()
 
 LOG_MESSAGES_PERIOD = 1000          # Print log messages to stderr after every nth messages
 UPDATE_BOOKMARK_PERIOD = 1000       # Update and send bookmark to stdout after nth messages
@@ -69,6 +69,14 @@ def init_local_store(kafka_config):
 
 def init_kafka_consumer(kafka_config):
     LOGGER.info('Initialising Kafka Consumer...')
+    if "avro_schema" in kafka_config and kafka_config["avro_schema"]:
+        LOGGER.info(f"avro_schema value set to {kafka_config['avro_schema']}, using avro deserializer.")
+        from kafkian.serde.deserialization import AvroDeserializer
+        avd = AvroDeserializer(schema_registry_url=kafka_config['avro_schema'])
+        deserializer = avd.deserialize
+    else:
+        def deserializer(m):
+            return json.loads(m.decode(kafka_config['encoding']))
     return KafkaConsumer(
         # Required parameters
         kafka_config['topic'],
@@ -85,7 +93,8 @@ def init_kafka_consumer(kafka_config):
         # Non-configurable parameters
         enable_auto_commit=False,
         auto_offset_reset='earliest',
-        value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])))
+        security_protocol=kafka_config['security_protocol'],
+        value_deserializer=deserializer)
 
 
 def kafka_message_to_singer_record(message, topic, primary_keys):

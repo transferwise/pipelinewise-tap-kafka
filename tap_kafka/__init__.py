@@ -10,7 +10,7 @@ from kafka import KafkaConsumer
 import tap_kafka.sync as sync
 import tap_kafka.common as common
 
-LOGGER = singer.get_logger('tap_kafka')
+LOGGER = singer.get_logger()
 
 REQUIRED_CONFIG_KEYS = [
     'bootstrap_servers',
@@ -42,11 +42,20 @@ def do_discovery(config):
     """Discover kafka topic by trying to connect to the topic and generate singer schema
     according to the config"""
     try:
+        if "avro_schema" in config and config["avro_schema"]:
+            LOGGER.info(f"avro_schema value set to {config['avro_schema']}, using avro deserializer.")
+            from kafkian.serde.deserialization import AvroDeserializer
+            avd = AvroDeserializer(schema_registry_url=config['avro_schema'])
+            deserializer = avd.deserialize
+        else:
+            def deserializer(m):
+                return json.loads(m.decode(config['encoding']))
         consumer = KafkaConsumer(config['topic'],
                                  group_id=config['group_id'],
                                  enable_auto_commit=False,
                                  consumer_timeout_ms=config['consumer_timeout_ms'],
-                                 # value_deserializer=lambda m: json.loads(m.decode('ascii'))
+                                 security_protocol=config['security_protocol'],
+                                 value_deserializer=deserializer,
                                  bootstrap_servers=config['bootstrap_servers'].split(','))
 
     except Exception as ex:
@@ -89,7 +98,9 @@ def generate_config(args_config):
         'encoding': args_config.get('encoding', DEFAULT_ENCODING),
         'local_store_dir': args_config.get('local_store_dir', DEFAULT_LOCAL_STORE_DIR),
         'local_store_batch_size_rows': args_config.get('local_store_batch_size_rows',
-                                                       DEFAULT_LOCAL_STORE_BATCH_SIZE_ROWS)
+                                                       DEFAULT_LOCAL_STORE_BATCH_SIZE_ROWS),
+        'avro_schema': args_config.get('avro_schema', ''),
+        'security_protocol': args_config.get('security_protocol', 'SSL')
     }
 
 
