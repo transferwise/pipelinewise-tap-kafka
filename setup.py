@@ -21,7 +21,8 @@ setup(name='pipelinewise-tap-kafka',
           'pipelinewise-singer-python==1.*',
           'dpath==2.0.1',
           'filelock==3.0.12',
-          'kafkian==0.13.0'
+          'kafkian==0.13.0',
+          'requests==2.20.0'
       ],
       extras_require={
           "test": [

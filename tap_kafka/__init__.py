@@ -111,9 +111,15 @@ def main_impl():
 
     if args.discover:
         do_discovery(args.config)
+
     elif args.properties:
         state = args.state or {}
         sync.do_sync(kafka_config, args.properties, state, fn_get_args=get_args)
+    elif "catalog_path" in args and args.catalog_path:
+        state = args.state or {}
+        with open(args.catalog_path) as json_file:
+            catalog = json.load(json_file)
+        sync.do_sync(kafka_config, catalog, state, fn_get_args=get_args)
     else:
         LOGGER.info("No properties were selected")
 
