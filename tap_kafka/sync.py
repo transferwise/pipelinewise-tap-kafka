@@ -91,7 +91,7 @@ def init_kafka_consumer(kafka_config):
         max_poll_interval_ms=kafka_config['max_poll_interval_ms'],
 
         # Non-configurable parameters
-        enable_auto_commit=False,
+        enable_auto_commit=True,
         auto_offset_reset='earliest',
         security_protocol=kafka_config['security_protocol'],
         value_deserializer=deserializer)
