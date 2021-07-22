@@ -217,7 +217,6 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         max_runtime_s = max_runtime_ms / 1000
         if now >= (start_time + max_runtime_s):
             LOGGER.info(f'Max runtime {max_runtime_s} seconds exceeded. Stop consuming more messages.')
-            consumer.close()
             break
 
     # Update singer bookmark at the last time to point it the the last processed offset
@@ -226,6 +225,7 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         local_store.insert(singer.format_message(singer.StateMessage(value=copy.deepcopy(state))))
         local_store.persist_messages()
         commit_kafka_consumer(consumer, message.topic, message.partition, message.offset)
+        consumer.close()
 
     return last_flush_ts
 
