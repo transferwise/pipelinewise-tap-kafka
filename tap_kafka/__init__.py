@@ -86,7 +86,7 @@ def generate_config(args_config):
 
         # Add optional parameters with defaults
         'primary_keys': args_config.get('primary_keys', {}),
-        'max_runtime_ms': args_config.get('max_runtime_ms', DEFAULT_MAX_RUNTIME_MS),
+        'max_runtime_ms': int(args_config.get('max_runtime_ms', DEFAULT_MAX_RUNTIME_MS)),
         'commit_interval_ms': args_config.get('commit_interval_ms', DEFAULT_COMMIT_INTERVAL_MS),
         'batch_size_rows': args_config.get('batch_size_rows', DEFAULT_BATCH_SIZE_ROWS),
         'batch_flush_interval_ms': args_config.get('batch_flush_interval_ms', DEFAULT_BATCH_FLUSH_INTERVAL_MS),
