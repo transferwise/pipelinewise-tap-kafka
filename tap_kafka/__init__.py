@@ -2,8 +2,8 @@
 import os
 import sys
 import json
-
 import singer
+
 from singer import utils
 from kafka import KafkaConsumer
 
@@ -17,7 +17,6 @@ REQUIRED_CONFIG_KEYS = [
     'group_id',
     'topic'
 ]
-
 
 DEFAULT_MAX_RUNTIME_MS = 300000
 DEFAULT_COMMIT_INTERVAL_MS = 5000
@@ -41,24 +40,17 @@ def dump_catalog(all_streams):
 def do_discovery(config):
     """Discover kafka topic by trying to connect to the topic and generate singer schema
     according to the config"""
-    try:
-        consumer = KafkaConsumer(config['topic'],
-                                 group_id=config['group_id'],
-                                 enable_auto_commit=False,
-                                 consumer_timeout_ms=config['consumer_timeout_ms'],
-                                 # value_deserializer=lambda m: json.loads(m.decode('ascii'))
-                                 bootstrap_servers=config['bootstrap_servers'].split(','))
-
-    except Exception as ex:
-        LOGGER.warning("Unable to connect to kafka. bootstrap_servers: %s, topic: %s, group_id: %s",
-                       config['bootstrap_servers'].split(','), config['topic'], config['group_id'])
-        LOGGER.warning(ex)
-        raise ex
+    consumer = KafkaConsumer(config['topic'],
+                             group_id=config['group_id'],
+                             enable_auto_commit=False,
+                             consumer_timeout_ms=config.get('consumer_timeout_ms', DEFAULT_CONSUMER_TIMEOUT_MS),
+                             bootstrap_servers=config['bootstrap_servers'].split(','))
 
     if config['topic'] not in consumer.topics():
         LOGGER.warning("Unable to view topic %s. bootstrap_servers: %s, topic: %s, group_id: %s",
                        config['topic'],
                        config['bootstrap_servers'].split(','), config['topic'], config['group_id'])
+
         raise Exception('Unable to view topic {}'.format(config['topic']))
 
     dump_catalog(common.generate_catalog(config))
