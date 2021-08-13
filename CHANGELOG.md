@@ -1,3 +1,9 @@
+4.0.1 (2021-08-13)
+------------------
+*Fixes*:
+  * Fallback to default consumer timeout if `consumer_timeout_ms` is not provided in discovery mode.
+  * Stop mis-handling exceptions during discovery.
+
 4.0.0 (2020-08-27)
 -------------------
 
