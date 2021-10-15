@@ -34,7 +34,7 @@ class TestKafkaConsumer(unittest.TestCase):
         kafka_config = test_utils.get_kafka_config()
 
         # Produce test messages
-        topic_name = test_utils.create_topic(kafka_config['bootstrap_servers'], 'test-topic-one', 4)
+        topic_name = test_utils.create_topic(kafka_config['bootstrap_servers'], 'test-topic-one', num_partitions=4)
         test_utils.produce_messages(
             kafka_config['bootstrap_servers'],
             topic_name,

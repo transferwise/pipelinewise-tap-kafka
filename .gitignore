@@ -14,6 +14,7 @@ __pycache__/
 dist/
 test_dir/
 tap-kafka-local-store/
+.coverage
 
 # Singer JSON files
 properties.json
