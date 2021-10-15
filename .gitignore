@@ -13,6 +13,7 @@ __pycache__/
 *~
 dist/
 test_dir/
+tap-kafka-local-store/
 
 # Singer JSON files
 properties.json

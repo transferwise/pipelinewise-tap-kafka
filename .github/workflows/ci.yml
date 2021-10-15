@@ -19,6 +19,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      - name: Build Kafka test env
+        run: docker-compose up -d --build
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -31,4 +34,13 @@ jobs:
         run: make lint
 
       - name: Unit Tests
-        run: make test
+        run: make unit_test
+
+      - name: Integration Tests
+        env:
+          TAP_KAFKA_BOOTSTRAP_SERVERS: localhost:29092
+          LOGGING_CONF_FILE: ./sample_logging.conf
+        run: make integration_test
+
+      - name: Shutdown Kafka test env
+        run: docker-compose down

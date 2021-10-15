@@ -127,9 +127,14 @@ The tap will write bookmarks to stdout which can be captured and passed as an op
   pip install .[test]
 ```
 
-2. To run tests:
+2. To run unit tests:
 ```
-  pytest tests
+  make unit_test
+```
+
+3. To run integration test:
+```
+  make integration_test
 ```
 
 ## To run pylint:
