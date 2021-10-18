@@ -54,7 +54,7 @@ class TestKafkaConsumer(unittest.TestCase):
         do_sync(tap_kafka_config, catalog, state={}, fn_get_args=get_args)
 
         # Tap output should have at least one of the following message types
-        self.assertEqual({singer.RecordMessage, singer.StateMessage}, message_types(SINGER_MESSAGES))
+        self.assertSetEqual({singer.RecordMessage, singer.StateMessage}, message_types(SINGER_MESSAGES))
 
         # Should have 5 record messages
         record_messages = list(filter(lambda m: (type(m) == singer.RecordMessage), SINGER_MESSAGES))
