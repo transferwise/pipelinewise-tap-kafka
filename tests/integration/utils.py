@@ -10,8 +10,6 @@ def get_file_lines(filename: str) -> List:
     with open(f'{os.path.dirname(__file__)}/resources/{filename}') as f_lines:
         return f_lines.readlines()
 
-    return []
-
 
 def get_kafka_config(extra_config: Dict = None) -> Dict:
     default_config = {
