@@ -24,11 +24,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Setup virtual environment
-        run: make venv
-
       - name: Pylinting
         run: make lint
 
       - name: Unit Tests
-        run: make test
+        run: make unit_test
+
+      - name: Integration Tests
+        run: make integration_test

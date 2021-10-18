@@ -13,9 +13,9 @@ from tap_kafka import common
 from tap_kafka import sync
 from tap_kafka.errors import InvalidBookmarkException
 
-from tests.helper.parse_args_mock import ParseArgsMock
-from tests.helper.local_store_mock import LocalStoreMock
-from tests.helper.kafka_consumer_mock import KafkaConsumerMock
+from tests.unit.helper.parse_args_mock import ParseArgsMock
+from tests.unit.helper.local_store_mock import LocalStoreMock
+from tests.unit.helper.kafka_consumer_mock import KafkaConsumerMock
 
 
 def _get_resource_from_json(filename):
