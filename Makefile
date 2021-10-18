@@ -27,9 +27,11 @@ clean_containers:
 	@docker-compose kill
 	@docker-compose rm -f
 
-clean: clean_containers
+clean_virtual_env:
 	@echo "Removing Virtual Environment at $(VENV_DIR)..."
 	@rm -rf $(VENV_DIR)
+
+clean: clean_containers clean_virtual_env
 
 lint: virtual_env
 	@$(VENV_DIR)/bin/pylint tap_kafka -d C,W,unexpected-keyword-arg,duplicate-code
