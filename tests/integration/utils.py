@@ -6,13 +6,11 @@ from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 
 
-def get_file_lines(filename):
-    lines = []
+def get_file_lines(filename: str) -> List:
     with open(f'{os.path.dirname(__file__)}/resources/{filename}') as f_lines:
-        for line in f_lines.readlines():
-            lines.append(line)
+        return f_lines.readlines()
 
-    return lines
+    return []
 
 
 def get_kafka_config(extra_config: Dict = None) -> Dict:
