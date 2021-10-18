@@ -2,10 +2,6 @@ VENV_DIR = ./venv
 ZOOKEEPER_CLIENT_PORT = 2181
 KAFKA_PORT = 29092
 
-.wait-for-containers:
-	@docker run --rm --network 'pipelinewise_tap_kafka_network' busybox /bin/sh -c "until nc -z zookeeper ${ZOOKEEPER_CLIENT_PORT}; do sleep 1; echo 'Waiting for Zookeeper to come up...'; done"
-	@docker run --rm --network 'pipelinewise_tap_kafka_network' busybox /bin/sh -c "until nc -z kafka ${KAFKA_PORT}; do sleep 1; echo 'Waiting for Kafka to come up...'; done"
-
 .run_pytest_unit:
 	@$(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=73 tests/unit -v
 
@@ -26,7 +22,9 @@ clean:
 
 start_containers: clean_containers
 	@docker-compose up -d
-	make .wait-for-containers
+	@echo "Waiting for Kafka and Zookeeper containers..."
+	@docker run --rm --network 'pipelinewise_tap_kafka_network' busybox /bin/sh -c "until nc -z zookeeper ${ZOOKEEPER_CLIENT_PORT}; do sleep 1; echo 'Waiting for Zookeeper to come up...'; done"
+	@docker run --rm --network 'pipelinewise_tap_kafka_network' busybox /bin/sh -c "until nc -z kafka ${KAFKA_PORT}; do sleep 1; echo 'Waiting for Kafka to come up...'; done"
 
 clean_containers:
 	@docker-compose kill
