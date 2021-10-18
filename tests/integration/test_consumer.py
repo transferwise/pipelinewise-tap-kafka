@@ -5,11 +5,7 @@ import singer
 from tap_kafka import generate_config, get_args
 from tap_kafka import common as tap_kafka_common
 from tap_kafka.sync import do_sync
-
-try:
-    import tests.integration.utils as test_utils
-except ImportError:
-    import utils as test_utils
+import tests.integration.utils as test_utils
 
 SINGER_MESSAGES = []
 
