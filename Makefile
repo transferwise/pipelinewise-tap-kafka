@@ -8,17 +8,13 @@ KAFKA_PORT = 29092
 .run_pytest_integration:
 	@TAP_KAFKA_BOOTSTRAP_SERVERS=localhost:${KAFKA_PORT} $(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=75 tests/integration -v
 
-venv:
+virtual_env:
 	@echo "Making Virtual Environment in $(VENV_DIR)..."
 	@python3 -m venv $(VENV_DIR)
 	@echo "Installing requirements..."
 	@. $(VENV_DIR)/bin/activate ;\
 	pip install --upgrade pip setuptools wheel ;\
 	pip install -e .[test]
-
-clean:
-	@echo "Removing Virtual Environment at $(VENV_DIR)..."
-	@rm -rf $(VENV_DIR)
 
 start_containers: clean_containers
 	@docker-compose up -d
@@ -27,12 +23,17 @@ start_containers: clean_containers
 	@docker run --rm --network 'pipelinewise_tap_kafka_network' busybox /bin/sh -c "until nc -z kafka ${KAFKA_PORT}; do sleep 1; echo 'Waiting for Kafka to come up...'; done"
 
 clean_containers:
+	@echo "Killing and removing containers..."
 	@docker-compose kill
 	@docker-compose rm -f
 
-lint: venv
+clean: clean_containers
+	@echo "Removing Virtual Environment at $(VENV_DIR)..."
+	@rm -rf $(VENV_DIR)
+
+lint: virtual_env
 	@$(VENV_DIR)/bin/pylint tap_kafka -d C,W,unexpected-keyword-arg,duplicate-code
 
-unit_test: venv .run_pytest_unit
+unit_test: virtual_env .run_pytest_unit
 
-integration_test: venv start_containers .run_pytest_integration clean_containers
+integration_test: virtual_env start_containers .run_pytest_integration clean_containers
