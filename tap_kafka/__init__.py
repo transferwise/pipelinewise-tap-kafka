@@ -92,9 +92,10 @@ def main_impl():
 
     if args.discover:
         do_discovery(args.config)
-    elif args.properties:
+    elif args.properties or args.catalog:
         state = args.state or {}
-        sync.do_sync(kafka_config, args.properties, state, fn_get_args=get_args)
+        sync.do_sync(kafka_config, args.catalog.to_dict() if args.catalog else args.properties, state,
+                     fn_get_args=get_args)
     else:
         LOGGER.info("No properties were selected")
 
