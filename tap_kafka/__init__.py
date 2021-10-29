@@ -66,8 +66,8 @@ def do_discovery(config):
         consumer.close()
         raise DiscoveryException('Unable to view topic {} - {}'.format(config['topic'], exc))
 
-    consumer.close()
     dump_catalog(common.generate_catalog(config))
+    consumer.close()
 
 
 def get_args():
