@@ -82,7 +82,6 @@ def init_kafka_consumer(kafka_config):
         # Non-configurable parameters
         'enable.auto.commit': False,
         'auto.offset.reset': 'earliest',
-        # 'value_deserializer': lambda m: json.loads(m.decode(kafka_config['encoding'])),  # !!
     })
     consumer.subscribe([kafka_config['topic']])
 
