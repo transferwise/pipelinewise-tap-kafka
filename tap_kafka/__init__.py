@@ -10,6 +10,8 @@ from confluent_kafka import Consumer, KafkaException
 import tap_kafka.sync as sync
 import tap_kafka.common as common
 
+from .errors import DiscoveryException
+
 LOGGER = singer.get_logger('tap_kafka')
 
 REQUIRED_CONFIG_KEYS = [
@@ -63,7 +65,7 @@ def do_discovery(config):
                        config['topic'],
                        config['bootstrap_servers'], config['topic'], config['group_id'])
 
-        raise Exception('Unable to view topic {} - {}'.format(config['topic'], exc))
+        raise DiscoveryException('Unable to view topic {} - {}'.format(config['topic'], exc))
 
     dump_catalog(common.generate_catalog(config))
 

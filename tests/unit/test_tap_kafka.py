@@ -11,7 +11,7 @@ from io import StringIO
 import tap_kafka
 from tap_kafka import common
 from tap_kafka import sync
-from tap_kafka.errors import InvalidBookmarkException
+from tap_kafka.errors import DiscoveryException, InvalidBookmarkException
 
 from tests.unit.helper.parse_args_mock import ParseArgsMock
 from tests.unit.helper.local_store_mock import LocalStoreMock
@@ -454,6 +454,19 @@ class TestSync(object):
             'message_offset': 1234,
             'message_partition': 0
         }
+
+    def test_do_disovery_failure(self):
+        """Validate if kafka messages converted to singer messages correctly"""
+        minimal_config = {
+            'topic': 'not_existing_topic',
+            'group_id': 'my_group_id',
+            'bootstrap_servers': 'not-existing-server1,not-existing-server2',
+            'session_timeout_ms': 1000,
+        }
+        config = tap_kafka.generate_config(minimal_config)
+
+        with pytest.raises(DiscoveryException):
+            tap_kafka.do_discovery(config)
 
 
 if __name__ == '__main__':
