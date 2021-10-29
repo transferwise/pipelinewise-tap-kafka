@@ -150,7 +150,7 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
     last_flush_ts = float(singer.get_bookmark(state, topic, 'timestamp') or 0)
 
     while True:
-        polled_message = consumer.poll(kafka_config['consumer_timeout_ms'] / 1000)
+        polled_message = consumer.poll(timeout=kafka_config['consumer_timeout_ms'] / 1000)
 
         # Stop consuming more messages if no new message and consumer_timeout_ms exceeded
         if polled_message is None:
