@@ -58,15 +58,15 @@ def do_discovery(config):
         if topic_md.error:
             raise KafkaException(topic_md.error)
 
-        consumer.close()
-
     except KafkaException as exc:
         LOGGER.warning("Unable to view topic %s. bootstrap_servers: %s, topic: %s, group_id: %s",
                        config['topic'],
                        config['bootstrap_servers'], config['topic'], config['group_id'])
 
+        consumer.close()
         raise DiscoveryException('Unable to view topic {} - {}'.format(config['topic'], exc))
 
+    consumer.close()
     dump_catalog(common.generate_catalog(config))
 
 
