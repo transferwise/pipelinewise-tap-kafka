@@ -124,7 +124,7 @@ class TestSync(object):
         assert tap_kafka.generate_config(minimal_config) == {
             'topic': 'my_topic',
             'group_id': 'my_group_id',
-            'bootstrap_servers': ['server1', 'server2', 'server3'],
+            'bootstrap_servers': 'server1,server2,server3',
             'primary_keys': {},
             'max_runtime_ms': tap_kafka.DEFAULT_MAX_RUNTIME_MS,
             'commit_interval_ms': tap_kafka.DEFAULT_COMMIT_INTERVAL_MS,
@@ -165,7 +165,7 @@ class TestSync(object):
         assert tap_kafka.generate_config(custom_config) == {
             'topic': 'my_topic',
             'group_id': 'my_group_id',
-            'bootstrap_servers': ['server1', 'server2', 'server3'],
+            'bootstrap_servers': 'server1,server2,server3',
             'primary_keys': {
                 'id': '$.jsonpath.to.primary_key'
             },
