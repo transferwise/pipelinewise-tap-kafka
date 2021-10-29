@@ -7,7 +7,7 @@ import dpath.util
 import singer
 from singer import utils, metadata
 from tap_kafka.local_store import LocalStore
-from kafka import KafkaConsumer, OffsetAndMetadata, TopicPartition
+from confluent_kafka import Consumer
 
 from .errors import InvalidBookmarkException
 
@@ -69,40 +69,41 @@ def init_local_store(kafka_config):
 
 def init_kafka_consumer(kafka_config):
     LOGGER.info('Initialising Kafka Consumer...')
-    return KafkaConsumer(
+    consumer = Consumer({
         # Required parameters
-        kafka_config['topic'],
-        bootstrap_servers=kafka_config['bootstrap_servers'],
-        group_id=kafka_config['group_id'],
+        'bootstrap.servers': kafka_config['bootstrap_servers'],
+        'group.id': kafka_config['group_id'],
 
         # Optional parameters
-        consumer_timeout_ms=kafka_config['consumer_timeout_ms'],
-        session_timeout_ms=kafka_config['session_timeout_ms'],
-        heartbeat_interval_ms=kafka_config['heartbeat_interval_ms'],
-        max_poll_records=kafka_config['max_poll_records'],
-        max_poll_interval_ms=kafka_config['max_poll_interval_ms'],
+        'session.timeout.ms': kafka_config['session_timeout_ms'],
+        'heartbeat.interval.ms': kafka_config['heartbeat_interval_ms'],
+        'max.poll.interval.ms': kafka_config['max_poll_interval_ms'],
 
         # Non-configurable parameters
-        enable_auto_commit=False,
-        auto_offset_reset='earliest',
-        value_deserializer=lambda m: json.loads(m.decode(kafka_config['encoding'])))
+        'enable.auto.commit': False,
+        'auto.offset.reset': 'earliest',
+        # 'value_deserializer': lambda m: json.loads(m.decode(kafka_config['encoding'])),  # !!
+    })
+    consumer.subscribe([kafka_config['topic']])
+
+    return consumer
 
 
 def kafka_message_to_singer_record(message, topic, primary_keys):
     """Transforms kafka message to singer record message"""
     # Create dictionary with base attributes
     record = {
-        "message": message.value,
-        "message_timestamp": message.timestamp,
-        "message_offset": message.offset,
-        "message_partition": message.partition
+        "message": message.value(),
+        "message_timestamp": message.timestamp(),
+        "message_offset": message.offset(),
+        "message_partition": message.partition()
     }
 
     # Add primary keys to the record message
     for key in primary_keys:
         pk_selector = primary_keys[key]
         try:
-            record[key] = dpath.util.get(message.value, pk_selector)
+            record[key] = dpath.util.get(message.value(), pk_selector)
         # Do not fail if PK not found in the message.
         # Continue without adding the extracted PK to the message
         except KeyError:
@@ -121,13 +122,12 @@ def consume_kafka_message(message, topic, primary_keys, local_store):
     return insert_ts
 
 
-def commit_kafka_consumer(consumer, topic, partition, offset):
+def commit_kafka_consumer(consumer, message):
     """Commit consumed message to kafka"""
-    topic_partition = TopicPartition(topic, partition)
-    consumer.commit({topic_partition: OffsetAndMetadata(offset + 1, None)})
+    consumer.commit(message)
 
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-locals,too-many-statements
 def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
     """Read kafka topic continuously, insert into local store and flush singer
     compatible messages in batches to STDOUT
@@ -149,10 +149,18 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
 
     # Start consuming kafka messages
     last_flush_ts = float(singer.get_bookmark(state, topic, 'timestamp') or 0)
-    for message in consumer:
-        LOGGER.debug("%s:%s:%s: key=%s value=%s" % (message.topic, message.partition,
-                                                    message.offset, message.key,
-                                                    message.value))
+
+    while True:
+        polled_message = consumer.poll(kafka_config['consumer_timeout_ms'] / 1000)
+
+        # Stop consuming more messages if no new message and consumer_timeout_ms exceeded
+        if polled_message is None:
+            break
+
+        message = polled_message
+        LOGGER.info("%s:%s:%s: key=%s value=%s" % (message.topic(), message.partition(),
+                                                   message.offset(), message.key(),
+                                                   message.value()))
 
         # Initialise the start time after the first message
         if not start_time:
@@ -169,7 +177,7 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         if last_consumed_ts - last_commit_time > commit_interval_ms / 1000:
             # Persist everything in the local store to disk and send commit message to kafka
             local_store.persist_messages()
-            commit_kafka_consumer(consumer, message.topic, message.partition, message.offset)
+            commit_kafka_consumer(consumer, message)
             last_commit_time = time.time()
 
         # Log message stats periodically
@@ -215,7 +223,7 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         state = update_bookmark(state, topic, last_consumed_ts)
         local_store.insert(singer.format_message(singer.StateMessage(value=copy.deepcopy(state))))
         local_store.persist_messages()
-        commit_kafka_consumer(consumer, message.topic, message.partition, message.offset)
+        commit_kafka_consumer(consumer, message)
 
     return last_flush_ts
 
