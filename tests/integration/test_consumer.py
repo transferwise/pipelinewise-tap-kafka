@@ -2,8 +2,9 @@ import unittest
 from unittest import mock
 import singer
 
-from tap_kafka import generate_config, get_args
+from tap_kafka import generate_config, get_args, do_discovery
 from tap_kafka import common as tap_kafka_common
+from tap_kafka.errors import DiscoveryException
 from tap_kafka.sync import do_sync
 import tests.integration.utils as test_utils
 
@@ -23,6 +24,41 @@ def message_types(messages):
 
 
 class TestKafkaConsumer(unittest.TestCase):
+
+    @mock.patch('tap_kafka.local_store.LocalStore._flush')
+    def test_tap_kafka_discovery(self, mock_flush):
+        mock_flush.side_effect = accumulate_singer_messages
+        kafka_config = test_utils.get_kafka_config()
+
+        # Produce test messages
+        topic_name = test_utils.create_topic(kafka_config['bootstrap_servers'],
+                                             'test-topic-for-discovery',
+                                             num_partitions=4)
+
+        # Consume test messages
+        tap_kafka_config = generate_config({
+            'bootstrap_servers': kafka_config['bootstrap_servers'],
+            'topic': topic_name,
+            'group_id': 'tap_kafka_integration_test',
+        })
+
+        do_discovery(tap_kafka_config)
+
+    @mock.patch('tap_kafka.local_store.LocalStore._flush')
+    def test_tap_kafka_discovery_failure(self, mock_flush):
+        mock_flush.side_effect = accumulate_singer_messages
+        kafka_config = test_utils.get_kafka_config()
+
+        # Trying to discover topic
+        tap_kafka_config = generate_config({
+            'bootstrap_servers': kafka_config['bootstrap_servers'],
+            'topic': 'not-existing-topic',
+            'group_id': 'tap_kafka_integration_test',
+            'session_timeout_ms': 1000,
+        })
+
+        with self.assertRaises(DiscoveryException):
+            do_discovery(tap_kafka_config)
 
     @mock.patch('tap_kafka.local_store.LocalStore._flush')
     def test_tap_kafka_consumer(self, mock_flush):

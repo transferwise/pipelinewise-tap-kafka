@@ -5,10 +5,12 @@ import json
 import singer
 
 from singer import utils
-from kafka import KafkaConsumer
+from confluent_kafka import Consumer, KafkaException
 
 import tap_kafka.sync as sync
 import tap_kafka.common as common
+
+from .errors import DiscoveryException
 
 LOGGER = singer.get_logger('tap_kafka')
 
@@ -40,20 +42,32 @@ def dump_catalog(all_streams):
 def do_discovery(config):
     """Discover kafka topic by trying to connect to the topic and generate singer schema
     according to the config"""
-    consumer = KafkaConsumer(config['topic'],
-                             group_id=config['group_id'],
-                             enable_auto_commit=False,
-                             consumer_timeout_ms=config.get('consumer_timeout_ms', DEFAULT_CONSUMER_TIMEOUT_MS),
-                             bootstrap_servers=config['bootstrap_servers'].split(','))
+    consumer = Consumer({
+        'bootstrap.servers': config['bootstrap_servers'],
+        'group.id': config['group_id'],
+        'auto.offset.reset': 'earliest',
+    })
 
-    if config['topic'] not in consumer.topics():
+    try:
+        topic = config['topic']
+
+        LOGGER.info(f"Discovering {topic} topic...")
+        cluster_md = consumer.list_topics(topic=topic, timeout=config['session_timeout_ms'] / 1000)
+        topic_md = cluster_md.topics[topic]
+
+        if topic_md.error:
+            raise KafkaException(topic_md.error)
+
+    except KafkaException as exc:
         LOGGER.warning("Unable to view topic %s. bootstrap_servers: %s, topic: %s, group_id: %s",
                        config['topic'],
-                       config['bootstrap_servers'].split(','), config['topic'], config['group_id'])
+                       config['bootstrap_servers'], config['topic'], config['group_id'])
 
-        raise Exception('Unable to view topic {}'.format(config['topic']))
+        consumer.close()
+        raise DiscoveryException('Unable to view topic {} - {}'.format(config['topic'], exc))
 
     dump_catalog(common.generate_catalog(config))
+    consumer.close()
 
 
 def get_args():
@@ -65,7 +79,7 @@ def generate_config(args_config):
         # Add required parameters
         'topic': args_config['topic'],
         'group_id': args_config['group_id'],
-        'bootstrap_servers': args_config['bootstrap_servers'].split(','),
+        'bootstrap_servers': args_config['bootstrap_servers'],
 
         # Add optional parameters with defaults
         'primary_keys': args_config.get('primary_keys', {}),
@@ -91,7 +105,7 @@ def main_impl():
     kafka_config = generate_config(args.config)
 
     if args.discover:
-        do_discovery(args.config)
+        do_discovery(kafka_config)
     elif args.properties:
         state = args.state or {}
         sync.do_sync(kafka_config, args.properties, state, fn_get_args=get_args)
