@@ -13,7 +13,7 @@ class JSONSimpleDeserializer(Deserializer):
 
     def __call__(self, value, ctx):
         """
-        Serializes unicode to bytes per the configured codec. Defaults to ``utf_8``.
+        Deserializes Python objects from JSON formatted bytes
         Args:
             value (bytes): bytes to be deserialized
             ctx (SerializationContext): Metadata pertaining to the serialization
