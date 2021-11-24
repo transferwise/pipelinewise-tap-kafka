@@ -46,6 +46,15 @@ def _delete_version_from_state_message(state):
     return state
 
 
+def _dict_to_kafka_message(dict_m):
+    return {
+        **dict_m,
+        **{
+            'timestamp': tuple(dict_m.get('timestamp', []))
+        }
+    }
+
+
 def _parse_stdout(stdout):
     stdout_messages = []
 
@@ -340,7 +349,8 @@ class TestSync(object):
         # Set test inputs
         state = {}
         stream = _get_resource_from_json('catalog.json')
-        kafka_messages = _get_resource_from_json('kafka-messages-from-multiple-partitions.json')
+        messages = _get_resource_from_json('kafka-messages-from-multiple-partitions.json')
+        kafka_messages = list(map(_dict_to_kafka_message, messages))
 
         # Set expected result on stdout
         exp_topic = self.config['topic']
@@ -369,7 +379,8 @@ class TestSync(object):
         # Set test inputs
         state = _get_resource_from_json('state-with-bookmark.json')
         stream = _get_resource_from_json('catalog.json')
-        kafka_messages = _get_resource_from_json('kafka-messages-from-multiple-partitions.json')
+        messages = _get_resource_from_json('kafka-messages-from-multiple-partitions.json')
+        kafka_messages = list(map(_dict_to_kafka_message, messages))
 
         # Set expected results on stdout
         exp_topic = self.config['topic']
@@ -473,10 +484,9 @@ class TestSync(object):
         assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 1234)) == 1234
         assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_LOG_APPEND_TIME, 1234)) == 1234
 
-        # Timestamps as lists
-        assert sync.get_timestamp_from_timestamp_tuple([confluent_kafka.TIMESTAMP_NOT_AVAILABLE, 1234]) == 0
-        assert sync.get_timestamp_from_timestamp_tuple([confluent_kafka.TIMESTAMP_CREATE_TIME, 1234]) == 1234
-        assert sync.get_timestamp_from_timestamp_tuple([confluent_kafka.TIMESTAMP_LOG_APPEND_TIME, 1234]) == 1234
+        # Invalid timestamp type
+        with pytest.raises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple(([confluent_kafka.TIMESTAMP_CREATE_TIME, 1234], 1234))
 
         # Invalid timestamp type
         with pytest.raises(InvalidTimestampException):

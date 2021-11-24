@@ -91,12 +91,9 @@ def init_kafka_consumer(kafka_config):
     return consumer
 
 
-def get_timestamp_from_timestamp_tuple(kafka_ts):
-    """Get the actual timestamp value from a kafka timestamp tuple
-
-    It accepts tuple and list to be compatible with JSON serialised kafka messages as well
-    """
-    if isinstance(kafka_ts, (list, tuple)):
+def get_timestamp_from_timestamp_tuple(kafka_ts: tuple) -> float:
+    """Get the actual timestamp value from a kafka timestamp tuple"""
+    if isinstance(kafka_ts, tuple):
         ts_type = kafka_ts[0]
 
         if ts_type == confluent_kafka.TIMESTAMP_NOT_AVAILABLE:
