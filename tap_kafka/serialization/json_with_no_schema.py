@@ -7,10 +7,6 @@ class JSONSimpleDeserializer(Deserializer):
     """
     Deserializes a Python object from JSON formatted bytes.
     """
-
-    def __init__(self):
-        pass
-
     def __call__(self, value, ctx):
         """
         Deserializes a Python object from JSON formatted bytes
