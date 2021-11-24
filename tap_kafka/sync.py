@@ -96,7 +96,7 @@ def get_timestamp_from_timestamp_tuple(kafka_ts):
 
     It accepts tuple and list to be compatible with JSON serialised kafka messages as well
     """
-    if isinstance(kafka_ts, tuple) or isinstance(kafka_ts, list):
+    if isinstance(kafka_ts, (list, tuple)):
         ts_type = kafka_ts[0]
 
         if ts_type == confluent_kafka.TIMESTAMP_NOT_AVAILABLE:
