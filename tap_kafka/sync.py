@@ -1,13 +1,15 @@
 """Sync functions that consumes and transforms kafka messages to singer messages"""
-import json
 import time
 import copy
 import dpath.util
 
 import singer
+import confluent_kafka
+
 from singer import utils, metadata
+from tap_kafka.errors import InvalidTimestampException
 from tap_kafka.local_store import LocalStore
-from confluent_kafka import Consumer
+from tap_kafka.serialization.json_with_no_schema import JSONSimpleDeserializer
 
 from .errors import InvalidBookmarkException
 
@@ -69,7 +71,7 @@ def init_local_store(kafka_config):
 
 def init_kafka_consumer(kafka_config):
     LOGGER.info('Initialising Kafka Consumer...')
-    consumer = Consumer({
+    consumer = confluent_kafka.DeserializingConsumer({
         # Required parameters
         'bootstrap.servers': kafka_config['bootstrap_servers'],
         'group.id': kafka_config['group_id'],
@@ -82,10 +84,30 @@ def init_kafka_consumer(kafka_config):
         # Non-configurable parameters
         'enable.auto.commit': False,
         'auto.offset.reset': 'earliest',
+        'value.deserializer': JSONSimpleDeserializer(),
     })
     consumer.subscribe([kafka_config['topic']])
 
     return consumer
+
+
+def get_timestamp_from_timestamp_tuple(kafka_ts):
+    """Get the actual timestamp value from a kafka timestamp tuple
+
+    It accepts tuple and list to be compatible with JSON serialised kafka messages as well
+    """
+    if isinstance(kafka_ts, tuple) or isinstance(kafka_ts, list):
+        ts_type = kafka_ts[0]
+
+        if ts_type == confluent_kafka.TIMESTAMP_NOT_AVAILABLE:
+            return 0
+
+        if ts_type in [confluent_kafka.TIMESTAMP_CREATE_TIME, confluent_kafka.TIMESTAMP_LOG_APPEND_TIME]:
+            return kafka_ts[1]
+
+        raise InvalidTimestampException(f'Invalid timestamp tuple. Timestamp type {ts_type} is not valid.')
+
+    raise InvalidTimestampException(f'Invalid kafka timestamp. It needs to be a tuple but it is a {type(kafka_ts)}.')
 
 
 def kafka_message_to_singer_record(message, topic, primary_keys):
@@ -93,7 +115,7 @@ def kafka_message_to_singer_record(message, topic, primary_keys):
     # Create dictionary with base attributes
     record = {
         "message": message.value(),
-        "message_timestamp": message.timestamp(),
+        "message_timestamp": get_timestamp_from_timestamp_tuple(message.timestamp()),
         "message_offset": message.offset(),
         "message_partition": message.partition()
     }
@@ -157,7 +179,7 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
             break
 
         message = polled_message
-        LOGGER.info("%s:%s:%s: key=%s value=%s" % (message.topic(), message.partition(),
+        LOGGER.debug("%s:%s:%s: key=%s value=%s" % (message.topic(), message.partition(),
                                                    message.offset(), message.key(),
                                                    message.value()))
 

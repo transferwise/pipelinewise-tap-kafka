@@ -10,3 +10,10 @@ class DiscoveryException(Exception):
     Exception to raise when discovery failed
     """
     pass
+
+
+class InvalidTimestampException(Exception):
+    """
+    Exception to raise when a kafka timestamp tuple is invalid
+    """
+    pass

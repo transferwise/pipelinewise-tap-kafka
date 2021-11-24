@@ -4,14 +4,13 @@ import json
 import unittest
 import pytest
 from unittest.mock import patch
-from collections import namedtuple
 
-from io import StringIO
 
 import tap_kafka
 from tap_kafka import common
 from tap_kafka import sync
-from tap_kafka.errors import DiscoveryException, InvalidBookmarkException
+from tap_kafka.errors import DiscoveryException, InvalidBookmarkException, InvalidTimestampException
+import confluent_kafka
 
 from tests.unit.helper.parse_args_mock import ParseArgsMock
 from tests.unit.helper.local_store_mock import LocalStoreMock
@@ -26,7 +25,7 @@ def _get_resource_from_json(filename):
 def _message_to_singer_record(message):
     return {
         'message': message.get('value'),
-        'message_timestamp': message.get('timestamp'),
+        'message_timestamp': sync.get_timestamp_from_timestamp_tuple(message.get('timestamp')),
         'message_offset': message.get('offset'),
         'message_partition': message.get('partition')
     }
@@ -65,11 +64,6 @@ def _read_kafka_topic(config, state, stream, kafka_messages):
     local_store_mock = LocalStoreMock()
     parse_arg_mock = ParseArgsMock(state)
     consumer = KafkaConsumerMock(kafka_messages)
-
-    # Capture singer messages on stdout
-    saved_stdout = sys.stdout
-    string_io = StringIO()
-    sys.stdout = string_io
 
     # Run sync_stream
     sync.read_kafka_topic(consumer, local_store_mock, config, state, parse_arg_mock.get_args)
@@ -402,7 +396,7 @@ class TestSync(object):
         # Converting without primary key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=123456789,
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
                                            offset=1234,
                                            partition=0)
         primary_keys = {}
@@ -416,7 +410,7 @@ class TestSync(object):
         # Converting with primary key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=123456789,
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id'}
@@ -431,7 +425,7 @@ class TestSync(object):
         # Converting with nested and multiple primary keys
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=123456789,
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id', 'y': '/data/y'}
@@ -447,7 +441,7 @@ class TestSync(object):
         # Converting with not existing primary keys
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=123456789,
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id', 'not-existing-key': '/path/not/exists'}
@@ -471,6 +465,26 @@ class TestSync(object):
 
         with pytest.raises(DiscoveryException):
             tap_kafka.do_discovery(config)
+
+    def test_get_timestamp_from_timestamp_tuple(self):
+        """Validate if the actual timestamp can be extracted from a kafka timestamp"""
+        # Timestamps as tuples
+        assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_NOT_AVAILABLE, 1234)) == 0
+        assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 1234)) == 1234
+        assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_LOG_APPEND_TIME, 1234)) == 1234
+
+        # Timestamps as lists
+        assert sync.get_timestamp_from_timestamp_tuple([confluent_kafka.TIMESTAMP_NOT_AVAILABLE, 1234]) == 0
+        assert sync.get_timestamp_from_timestamp_tuple([confluent_kafka.TIMESTAMP_CREATE_TIME, 1234]) == 1234
+        assert sync.get_timestamp_from_timestamp_tuple([confluent_kafka.TIMESTAMP_LOG_APPEND_TIME, 1234]) == 1234
+
+        # Invalid timestamp type
+        with pytest.raises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple((9999, 1234))
+
+        # Invalid timestamp type
+        with pytest.raises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple("not_a_tuple_or_list")
 
 
 if __name__ == '__main__':
