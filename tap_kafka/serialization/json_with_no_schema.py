@@ -6,7 +6,7 @@ from confluent_kafka.serialization import SerializationError
 class JSONSimpleDeserializer(Deserializer):
     """
     Deserializes a Python objects from JSON bytes.
-    """  # noqa: E501
+    """
 
     def __init__(self):
         pass
