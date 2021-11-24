@@ -9,7 +9,12 @@ from unittest.mock import patch
 import tap_kafka
 from tap_kafka import common
 from tap_kafka import sync
-from tap_kafka.errors import DiscoveryException, InvalidBookmarkException, InvalidTimestampException
+from tap_kafka.errors import (
+    DiscoveryException,
+    InvalidBookmarkException,
+    InvalidTimestampException,
+    TimestampNotAvailableException
+)
 import confluent_kafka
 
 from tests.unit.helper.parse_args_mock import ParseArgsMock
@@ -480,9 +485,12 @@ class TestSync(object):
     def test_get_timestamp_from_timestamp_tuple(self):
         """Validate if the actual timestamp can be extracted from a kafka timestamp"""
         # Timestamps as tuples
-        assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_NOT_AVAILABLE, 1234)) == 0
         assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 1234)) == 1234
         assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_LOG_APPEND_TIME, 1234)) == 1234
+
+        # Timestamp not available
+        with pytest.raises(TimestampNotAvailableException):
+            sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_NOT_AVAILABLE, 1234))
 
         # Invalid timestamp type
         with pytest.raises(InvalidTimestampException):

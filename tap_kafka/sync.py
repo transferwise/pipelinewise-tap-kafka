@@ -7,7 +7,7 @@ import singer
 import confluent_kafka
 
 from singer import utils, metadata
-from tap_kafka.errors import InvalidTimestampException
+from tap_kafka.errors import InvalidTimestampException, TimestampNotAvailableException
 from tap_kafka.local_store import LocalStore
 from tap_kafka.serialization.json_with_no_schema import JSONSimpleDeserializer
 
@@ -97,7 +97,7 @@ def get_timestamp_from_timestamp_tuple(kafka_ts: tuple) -> float:
         ts_type = kafka_ts[0]
 
         if ts_type == confluent_kafka.TIMESTAMP_NOT_AVAILABLE:
-            return 0
+            raise TimestampNotAvailableException('Required timestamp not available in the kafka message.')
 
         if ts_type in [confluent_kafka.TIMESTAMP_CREATE_TIME, confluent_kafka.TIMESTAMP_LOG_APPEND_TIME]:
             return kafka_ts[1]
