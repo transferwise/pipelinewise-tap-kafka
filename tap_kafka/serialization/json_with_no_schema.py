@@ -5,7 +5,7 @@ from confluent_kafka.serialization import SerializationError
 
 class JSONSimpleDeserializer(Deserializer):
     """
-    Deserializes Python objects from JSON formatted bytes.
+    Deserializes a Python object from JSON formatted bytes.
     """
 
     def __init__(self):
@@ -13,7 +13,7 @@ class JSONSimpleDeserializer(Deserializer):
 
     def __call__(self, value, ctx):
         """
-        Deserializes Python objects from JSON formatted bytes
+        Deserializes a Python object from JSON formatted bytes
         Args:
             value (bytes): bytes to be deserialized
             ctx (SerializationContext): Metadata pertaining to the serialization
