@@ -176,9 +176,8 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
             break
 
         message = polled_message
-        LOGGER.debug("%s:%s:%s: key=%s value=%s" % (message.topic(), message.partition(),
-                                                   message.offset(), message.key(),
-                                                   message.value()))
+        LOGGER.debug("%s:%s:%s: key=%s value=<HIDDEN>" % (message.topic(), message.partition(),
+                                                          message.offset(), message.key()))
 
         # Initialise the start time after the first message
         if not start_time:
