@@ -140,8 +140,6 @@ class LocalStore:
         message_to_append = message
         if isinstance(message, bytes):
             message_to_append = message.decode('utf-8')
-        else:
-            message_to_append = message
 
         self.messages_to_persist.append(message_to_append)
         self.last_inserted_ts = time.time()
