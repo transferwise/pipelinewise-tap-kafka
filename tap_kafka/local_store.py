@@ -137,7 +137,11 @@ class LocalStore:
         """Insert a new message with a generated timestamp
         Returns the last timestamp of the last inserted message"""
         # Add to the in-memory batch to avoid too frequent I/O write
-        self.messages_to_persist.append(message)
+        message_to_append = message
+        if isinstance(message, bytes):
+            message_to_append = message.decode('utf-8')
+
+        self.messages_to_persist.append(message_to_append)
         self.last_inserted_ts = time.time()
 
         # Write to disk if in-memory batch is full

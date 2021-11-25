@@ -3,21 +3,21 @@
       "topic": "dummy_topic",
       "offset": 1,
       "partition": 1,
-      "timestamp": 1575895711187,
+      "timestamp": [1, 1575895711187],
       "value": {"result": "SUCCESS", "details": {"id": "1001", "type": "TYPE_1", "profileId": 1234}}
   },
   {
       "topic": "dummy_topic",
       "offset": 2,
       "partition": 2,
-      "timestamp": 1575895711187,
+      "timestamp": [1, 1575895711187],
       "value": {"result": "SUCCESS", "details": {"id": "1002", "type": "TYPE_2", "profileId": 1234}}
   },
   {
       "topic": "dummy_topic",
       "offset": 3,
       "partition": 2,
-      "timestamp": 1575895711187,
+      "timestamp": [1, 1575895711187],
       "value": {"result": "SUCCESS", "details": {"id": "1003", "type": "TYPE_3", "profileId": 1234}}
   }
 ]
