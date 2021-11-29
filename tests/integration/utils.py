@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime
 from typing import Dict, List
 
@@ -62,6 +63,10 @@ def create_topic(
             raise exc
 
 
+def generate_unique_consumer_group(prefix='tap_kafka_integration_test'):
+    return f"{prefix}{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+
 def produce_messages(
         bootstrap_servers: str,
         topic_name: str,
@@ -76,7 +81,11 @@ def produce_messages(
             print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
     for message in messages:
+        msg_dict = json.loads(message)
+        msg_key = str(msg_dict['message_key'])
+        msg_value = json.dumps(msg_dict['message'])
+
         p.poll(0)
-        p.produce(topic_name, message.encode('utf-8'), callback=delivery_report)
+        p.produce(topic_name, msg_value, key=msg_key, callback=delivery_report)
 
     p.flush()

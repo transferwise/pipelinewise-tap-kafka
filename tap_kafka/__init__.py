@@ -1,5 +1,4 @@
 """pipelinewise-tap-kafka"""
-import os
 import sys
 import json
 import singer
@@ -22,16 +21,11 @@ REQUIRED_CONFIG_KEYS = [
 
 DEFAULT_MAX_RUNTIME_MS = 300000
 DEFAULT_COMMIT_INTERVAL_MS = 5000
-DEFAULT_BATCH_SIZE_ROWS = 1000
-DEFAULT_BATCH_FLUSH_INTERVAL_MS = 60000
 DEFAULT_CONSUMER_TIMEOUT_MS = 10000
 DEFAULT_SESSION_TIMEOUT_MS = 30000
 DEFAULT_HEARTBEAT_INTERVAL_MS = 10000
 DEFAULT_MAX_POLL_INTERVAL_MS = 300000
 DEFAULT_MAX_POLL_RECORDS = 500
-DEFAULT_ENCODING = 'utf-8'
-DEFAULT_LOCAL_STORE_DIR = os.path.join(os.getcwd(), 'tap-kafka-local-store')
-DEFAULT_LOCAL_STORE_BATCH_SIZE_ROWS = 1000
 
 
 def dump_catalog(all_streams):
@@ -85,17 +79,11 @@ def generate_config(args_config):
         'primary_keys': args_config.get('primary_keys', {}),
         'max_runtime_ms': args_config.get('max_runtime_ms', DEFAULT_MAX_RUNTIME_MS),
         'commit_interval_ms': args_config.get('commit_interval_ms', DEFAULT_COMMIT_INTERVAL_MS),
-        'batch_size_rows': args_config.get('batch_size_rows', DEFAULT_BATCH_SIZE_ROWS),
-        'batch_flush_interval_ms': args_config.get('batch_flush_interval_ms', DEFAULT_BATCH_FLUSH_INTERVAL_MS),
         'consumer_timeout_ms': args_config.get('consumer_timeout_ms', DEFAULT_CONSUMER_TIMEOUT_MS),
         'session_timeout_ms': args_config.get('session_timeout_ms', DEFAULT_SESSION_TIMEOUT_MS),
         'heartbeat_interval_ms': args_config.get('heartbeat_interval_ms', DEFAULT_HEARTBEAT_INTERVAL_MS),
         'max_poll_records': args_config.get('max_poll_records', DEFAULT_MAX_POLL_RECORDS),
-        'max_poll_interval_ms': args_config.get('max_poll_interval_ms', DEFAULT_MAX_POLL_INTERVAL_MS),
-        'encoding': args_config.get('encoding', DEFAULT_ENCODING),
-        'local_store_dir': args_config.get('local_store_dir', DEFAULT_LOCAL_STORE_DIR),
-        'local_store_batch_size_rows': args_config.get('local_store_batch_size_rows',
-                                                       DEFAULT_LOCAL_STORE_BATCH_SIZE_ROWS)
+        'max_poll_interval_ms': args_config.get('max_poll_interval_ms', DEFAULT_MAX_POLL_INTERVAL_MS)
     }
 
 
@@ -108,7 +96,7 @@ def main_impl():
         do_discovery(kafka_config)
     elif args.properties:
         state = args.state or {}
-        sync.do_sync(kafka_config, args.properties, state, fn_get_args=get_args)
+        sync.do_sync(kafka_config, args.properties, state)
     else:
         LOGGER.info("No properties were selected")
 

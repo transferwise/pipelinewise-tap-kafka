@@ -1,5 +1,5 @@
-{"key":1,"value":"message_one"}
-{"key":2,"value":"message_two"}
-{"key":3,"value":"message_three"}
-{"key":4,"value":"message_four"}
-{"key":5,"value":"message_five"}
+{"message_key": 1, "message": {"id":1, "value":"initial id 1"}}
+{"message_key": 1, "message": {"id":1, "value":"updated id 1"}}
+{"message_key": 2, "message": {"id":2, "value":"initial id 2"}}
+{"message_key": 2, "message": {"id":2, "value":"updated id 2"}}
+{"message_key": 3, "message": {"id":3, "value":"initial id 3"}}
