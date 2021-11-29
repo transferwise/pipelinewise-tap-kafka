@@ -24,3 +24,10 @@ class TimestampNotAvailableException(Exception):
     Exception to raise when timestamp not available in a kafka message
     """
     pass
+
+
+class InvalidAssignByKeyException(Exception):
+    """
+    Exception to raise when consumer assigned by an invalid option
+    """
+    pass

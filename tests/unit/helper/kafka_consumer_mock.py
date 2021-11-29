@@ -58,6 +58,8 @@ class KafkaConsumerMock(object):
     def __init__(self, fake_messages):
         self.fake_messages = fake_messages
         self.fake_messages_pos = 0
+        self.committed_offsets = []
+        self.assigned_offsets = []
 
     def poll(self, timeout):
         if self.fake_messages_pos > len(self.fake_messages) - 1:
@@ -67,5 +69,10 @@ class KafkaConsumerMock(object):
             current_fake_message = self.fake_messages[self.fake_messages_pos - 1]
             return _create_fake_kafka_message(current_fake_message)
 
-    def commit(self, message=None):
-        pass
+    def assign(self, offsets=None):
+        if offsets:
+            self.assigned_offsets = offsets
+
+    def commit(self, offsets=None):
+        if offsets:
+            self.committed_offsets = offsets
