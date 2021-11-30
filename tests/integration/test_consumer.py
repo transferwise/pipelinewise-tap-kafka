@@ -106,7 +106,7 @@ class TestKafkaConsumer(unittest.TestCase):
         singer.write_message = lambda m: singer_messages.append(m.asdict())
 
         # Should not receive any RECORD and STATE messages because we start consuming from latest
-        sync.do_sync(tap_kafka_config, catalog, state={})
+        sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
         assert singer_messages == [
             {
                 'type': 'SCHEMA',
@@ -344,13 +344,13 @@ class TestKafkaConsumer(unittest.TestCase):
         singer.write_message = lambda m: singer_messages.append(m.asdict())
 
         # Should receive all RECORD and STATE messages because we start consuming from the earliest
-        sync.do_sync(tap_kafka_config, catalog, state={})
+        sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
         assert len(singer_messages) == 8
 
         # Second run should not receive any RECORD messages even if no state provided:
         # Last message should be committed, no new one produced so nothing new expected to receive
         singer_messages = []
-        sync.do_sync(tap_kafka_config, catalog, state={})
+        sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
         assert len(singer_messages) == 2
         assert singer_messages == [
             {
@@ -399,7 +399,7 @@ class TestKafkaConsumer(unittest.TestCase):
         singer.write_message = lambda m: singer_messages.append(m.asdict())
 
         # Should not receive any RECORD and STATE messages because we start consuming from latest
-        sync.do_sync(tap_kafka_config, catalog, state={})
+        sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
         assert singer_messages == [
             {
                 'type': 'SCHEMA',

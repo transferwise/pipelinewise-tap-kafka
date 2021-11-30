@@ -214,7 +214,7 @@ def assign_consumer_to_timestamp(consumer, topic: str, timestamp: str, timeout: 
 
 def assign_consumer_to_bookmarked_state(consumer, topic: str, state, assign_by: str = 'timestamp') -> None:
     """Assign consumer to bookmarked positions"""
-    bookmarked_partitions = state['bookmarks']['topic']
+    bookmarked_partitions = state['bookmarks'][topic]
     partitions_to_assign = [bookmarked_partition_to_next_position(topic,
                                                                   bookmarked_partitions[p],
                                                                   assign_by=assign_by) for p in bookmarked_partitions]
