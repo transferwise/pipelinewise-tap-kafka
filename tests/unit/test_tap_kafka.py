@@ -12,6 +12,7 @@ from tap_kafka import common
 from tap_kafka import sync
 from tap_kafka.errors import (
     DiscoveryException,
+    InvalidConfigException,
     InvalidBookmarkException,
     InvalidTimestampException,
     InvalidAssignByKeyException,
@@ -180,6 +181,38 @@ class TestSync(object):
             'max_poll_records': 4444,
             'max_poll_interval_ms': 5555
         }
+
+    def test_validate_config(self):
+        """Make sure if config dict can be validated correctly"""
+        # Should raise an exception if a required key (bootstrap_servers) not exists in the config
+        with pytest.raises(InvalidConfigException):
+            tap_kafka.validate_config({'topic': 'my_topic',
+                                       'group_id': 'my_group_id'})
+
+        # Should raise an exception if initial_start_time is not valid
+        with pytest.raises(InvalidConfigException):
+            tap_kafka.validate_config({'topic': 'my_topic',
+                                       'group_id': 'my_group_id',
+                                       'bootstrap_servers': 'server1,server2,server3',
+                                       'initial_start_time': 'invalid-iso8601-timestmap'})
+
+        # Initial start time is a reserved word (latest)
+        assert tap_kafka.validate_config({'topic': 'my_topic',
+                                          'group_id': 'my_group_id',
+                                          'bootstrap_servers': 'server1,server2,server3',
+                                          'initial_start_time': 'latest'}) is None
+
+        # Initial start time is a reserved word (earliset)
+        assert tap_kafka.validate_config({'topic': 'my_topic',
+                                          'group_id': 'my_group_id',
+                                          'bootstrap_servers': 'server1,server2,server3',
+                                          'initial_start_time': 'earliest'}) is None
+
+        # Initial start time is a valid iso 8601 timestamp
+        assert tap_kafka.validate_config({'topic': 'my_topic',
+                                          'group_id': 'my_group_id',
+                                          'bootstrap_servers': 'server1,server2,server3',
+                                          'initial_start_time': '2021-11-01 12:00:00'}) is None
 
     def test_generate_schema_with_no_pk(self):
         """Should not add extra column when no PK defined"""
