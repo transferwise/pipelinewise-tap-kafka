@@ -132,6 +132,7 @@ class TestSync(object):
             'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3',
             'primary_keys': {},
+            'initial_start_time': 'latest',
             'max_runtime_ms': tap_kafka.DEFAULT_MAX_RUNTIME_MS,
             'commit_interval_ms': tap_kafka.DEFAULT_COMMIT_INTERVAL_MS,
             'consumer_timeout_ms': tap_kafka.DEFAULT_CONSUMER_TIMEOUT_MS,
@@ -170,6 +171,7 @@ class TestSync(object):
             'primary_keys': {
                 'id': '$.jsonpath.to.primary_key'
             },
+            'initial_start_time': 'latest',
             'max_runtime_ms': 1111,
             'commit_interval_ms': 10000,
             'consumer_timeout_ms': 1111,
@@ -867,6 +869,74 @@ class TestSync(object):
         # Invalid timestamp type
         with pytest.raises(InvalidTimestampException):
             sync.get_timestamp_from_timestamp_tuple("not_a_tuple_or_list")
+
+    def test_initial_start_time_to_offset_reset(self):
+        """Initial start time can be one of 'latest', 'earliest' or an ISO timestamp"""
+        # Earliest should return earliest
+        assert sync.initial_start_time_to_offset_reset('earliest') == 'earliest'
+
+        # Anything else should return latest. Every string, ISO timestamps or non string values
+        assert sync.initial_start_time_to_offset_reset('latest') == 'latest'
+        assert sync.initial_start_time_to_offset_reset('2021-11-01 16:00:30') == 'latest'
+        assert sync.initial_start_time_to_offset_reset(None) == 'latest'
+        assert sync.initial_start_time_to_offset_reset(1234) == 'latest'
+
+    def test_iso_timestamp_to_epoch(self):
+        """Validate converting ISO timestamps to epoch milliseconds"""
+        # Using space as date and time delimiter
+        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11') == 1635807671000
+        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123') == 1635807671123
+        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123456') == 1635807671123
+        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123987') == 1635807671123
+        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123987+00:00') == 1635807671123
+        assert sync.iso_timestamp_to_epoch('2021-11-02 02:01:11.123987+03:00') == 1635807671123
+
+        # Using T as date and time delimiter
+        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11') == 1635807671000
+        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123') == 1635807671123
+        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123456') == 1635807671123
+        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123987') == 1635807671123
+        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123987+00:00') == 1635807671123
+        assert sync.iso_timestamp_to_epoch('2021-11-02T02:01:11.123987+03:00') == 1635807671123
+
+        # Invalid ISO 8601 format should raise exception
+        with pytest.raises(InvalidTimestampException):
+            sync.iso_timestamp_to_epoch('invalid-timestamp')
+
+    @patch('tap_kafka.sync.assign_consumer_to_bookmarked_state')
+    @patch('tap_kafka.sync.assign_consumer_to_timestamp')
+    def test_assign_consumer(self, assign_consumer_to_timestamp, assign_consumer_to_bookmarked_state):
+        consumer = KafkaConsumerMock([])
+
+        # Should not assign if both state and initial_start_time are empty
+        sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time=None)
+        assert assign_consumer_to_timestamp.call_count == 0
+        assert assign_consumer_to_bookmarked_state.call_count == 0
+
+        # Should assign by bookmark if initial_start_time is the reserver 'latest'
+        sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='latest')
+        assert assign_consumer_to_timestamp.call_count == 0
+        assert assign_consumer_to_bookmarked_state.call_count == 1
+
+        # Should assign by bookmark if initial_start_time is the reserver 'earliest'
+        sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='earliest')
+        assert assign_consumer_to_timestamp.call_count == 0
+        assert assign_consumer_to_bookmarked_state.call_count == 2
+
+        # Should assign by timestamp if state not provided and initial_start_time is an ISO 8601 timestamp
+        sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='2021-11-01 12:00:00')
+        assert assign_consumer_to_timestamp.call_count == 1
+        assert assign_consumer_to_bookmarked_state.call_count == 2
+
+        # Should assign by bookmark if bookmark provided
+        sync.assign_consumer(consumer, topic='test-topic', state={'bmrk': []}, initial_start_time=None)
+        assert assign_consumer_to_timestamp.call_count == 1
+        assert assign_consumer_to_bookmarked_state.call_count == 3
+
+        # Should not assign by bookmark if both state and initial_start_time are provided
+        sync.assign_consumer(consumer, topic='test-topic', state={'bmrk': []}, initial_start_time='2021-11-01 12:00:00')
+        assert assign_consumer_to_timestamp.call_count == 1
+        assert assign_consumer_to_bookmarked_state.call_count == 4
 
 
 if __name__ == '__main__':

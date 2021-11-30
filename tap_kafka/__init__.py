@@ -19,6 +19,7 @@ REQUIRED_CONFIG_KEYS = [
     'topic'
 ]
 
+DEFAULT_INITIAL_START_TIME = 'latest'
 DEFAULT_MAX_RUNTIME_MS = 300000
 DEFAULT_COMMIT_INTERVAL_MS = 5000
 DEFAULT_CONSUMER_TIMEOUT_MS = 10000
@@ -77,6 +78,7 @@ def generate_config(args_config):
 
         # Add optional parameters with defaults
         'primary_keys': args_config.get('primary_keys', {}),
+        'initial_start_time': args_config.get('initial_start_time', DEFAULT_INITIAL_START_TIME),
         'max_runtime_ms': args_config.get('max_runtime_ms', DEFAULT_MAX_RUNTIME_MS),
         'commit_interval_ms': args_config.get('commit_interval_ms', DEFAULT_COMMIT_INTERVAL_MS),
         'consumer_timeout_ms': args_config.get('consumer_timeout_ms', DEFAULT_CONSUMER_TIMEOUT_MS),
