@@ -64,10 +64,7 @@ def update_bookmark(state, topic, message):
 
 def initial_start_time_to_offset_reset(initial_start_time: str) -> str:
     """Convert initial_start_time to corresponding kafka auto_offset_reset"""
-    if initial_start_time == 'earliest':
-        return 'earliest'
-
-    return 'latest'
+    return 'earliest' if initial_start_time == 'earliest' else 'latest'
 
 
 def iso_timestamp_to_epoch(iso_timestamp: str) -> int:
