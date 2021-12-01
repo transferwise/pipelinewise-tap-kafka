@@ -45,7 +45,7 @@ class TestKafkaConsumer(unittest.TestCase):
         tap_kafka.dump_catalog = lambda c: catalog_streams.extend(c)
         tap_kafka.do_discovery(tap_kafka_config)
 
-        assert catalog_streams == [
+        self.assertEqual(catalog_streams, [
             {
                 'tap_stream_id': catalog_streams[0]['tap_stream_id'],
                 'metadata': [
@@ -61,7 +61,7 @@ class TestKafkaConsumer(unittest.TestCase):
                     }
                 }
             }
-        ]
+        ])
 
     def test_tap_kafka_discovery_failure(self):
         kafka_config = test_utils.get_kafka_config()
@@ -107,7 +107,7 @@ class TestKafkaConsumer(unittest.TestCase):
 
         # Should not receive any RECORD and STATE messages because we start consuming from latest
         sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
-        assert singer_messages == [
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,
@@ -128,7 +128,7 @@ class TestKafkaConsumer(unittest.TestCase):
                 'stream': topic,
                 'version': singer_messages[1]['version']
             }
-        ]
+        ])
 
         # Position to the time when the test started
         singer_messages = []
@@ -138,8 +138,8 @@ class TestKafkaConsumer(unittest.TestCase):
                                         'offset': 0,
                                         'timestamp': start_time}}}})
 
-        assert len(singer_messages) == 8
-        assert singer_messages == [
+        self.assertEqual(len(singer_messages), 8)
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,
@@ -228,7 +228,7 @@ class TestKafkaConsumer(unittest.TestCase):
                     }
                 }
             }
-        ]
+        ])
 
         # Save state with bookmarks
         state = singer_messages[7]['value']
@@ -251,8 +251,8 @@ class TestKafkaConsumer(unittest.TestCase):
         singer_messages = []
         sync.do_sync(tap_kafka_config, catalog, state=state)
 
-        assert len(singer_messages) == 6
-        assert singer_messages == [
+        self.assertEqual(len(singer_messages), 6)
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,
@@ -317,7 +317,7 @@ class TestKafkaConsumer(unittest.TestCase):
                     }
                 }
             }
-        ]
+        ])
 
     def test_tap_kafka_consumer_initial_start_time_earliest(self):
         kafka_config = test_utils.get_kafka_config()
@@ -345,14 +345,14 @@ class TestKafkaConsumer(unittest.TestCase):
 
         # Should receive all RECORD and STATE messages because we start consuming from the earliest
         sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
-        assert len(singer_messages) == 8
+        self.assertEqual(len(singer_messages), 8)
 
         # Second run should not receive any RECORD messages even if no state provided:
         # Last message should be committed, no new one produced so nothing new expected to receive
         singer_messages = []
         sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
-        assert len(singer_messages) == 2
-        assert singer_messages == [
+        self.assertEqual(len(singer_messages), 2)
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,
@@ -372,7 +372,7 @@ class TestKafkaConsumer(unittest.TestCase):
                 'stream': topic,
                 'version': singer_messages[1]['version']
             }
-        ]
+        ])
 
     def test_tap_kafka_consumer_initial_start_time_latest(self):
         kafka_config = test_utils.get_kafka_config()
@@ -400,7 +400,7 @@ class TestKafkaConsumer(unittest.TestCase):
 
         # Should not receive any RECORD and STATE messages because we start consuming from latest
         sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
-        assert singer_messages == [
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,
@@ -420,7 +420,7 @@ class TestKafkaConsumer(unittest.TestCase):
                 'stream': topic,
                 'version': singer_messages[1]['version']
             }
-        ]
+        ])
 
     def test_tap_kafka_consumer_initial_start_time_timestamp(self):
         kafka_config = test_utils.get_kafka_config()
@@ -461,8 +461,8 @@ class TestKafkaConsumer(unittest.TestCase):
 
         # Should receive RECORD and STATE messages only from json_messages_to_produce_2.json
         sync.do_sync(tap_kafka_config, catalog, state={})
-        assert len(singer_messages) == 6
-        assert singer_messages == [
+        self.assertEqual(len(singer_messages), 6)
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,
@@ -523,4 +523,4 @@ class TestKafkaConsumer(unittest.TestCase):
                     }
                 }
             }
-        ]
+        ])

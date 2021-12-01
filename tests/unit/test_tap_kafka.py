@@ -2,7 +2,6 @@ import os
 import time
 import json
 import unittest
-import pytest
 from unittest.mock import patch
 
 
@@ -106,7 +105,7 @@ def _assert_singer_messages_in_local_store_equal(local_store, topic, exp_records
     assert len(exp_singer_states) == 0
 
 
-class TestSync(object):
+class TestSync(unittest.TestCase):
     """
     Unit Tests
     """
@@ -128,7 +127,7 @@ class TestSync(object):
             'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3'
         }
-        assert tap_kafka.generate_config(minimal_config) == {
+        self.assertEqual(tap_kafka.generate_config(minimal_config), {
             'topic': 'my_topic',
             'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3',
@@ -141,7 +140,7 @@ class TestSync(object):
             'heartbeat_interval_ms': tap_kafka.DEFAULT_HEARTBEAT_INTERVAL_MS,
             'max_poll_records': tap_kafka.DEFAULT_MAX_POLL_RECORDS,
             'max_poll_interval_ms': tap_kafka.DEFAULT_MAX_POLL_INTERVAL_MS
-        }
+        })
 
     def test_generate_config_with_custom_parameters(self):
         """Should generate config dictionary with every required and optional parameter with custom values"""
@@ -165,7 +164,7 @@ class TestSync(object):
             'local_store_dir': '/tmp/local-store',
             'local_store_batch_size_rows': 500
         }
-        assert tap_kafka.generate_config(custom_config) == {
+        self.assertEqual(tap_kafka.generate_config(custom_config), {
             'topic': 'my_topic',
             'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3',
@@ -180,43 +179,43 @@ class TestSync(object):
             'heartbeat_interval_ms': 3333,
             'max_poll_records': 4444,
             'max_poll_interval_ms': 5555
-        }
+        })
 
     def test_validate_config(self):
         """Make sure if config dict can be validated correctly"""
         # Should raise an exception if a required key (bootstrap_servers) not exists in the config
-        with pytest.raises(InvalidConfigException):
+        with self.assertRaises(InvalidConfigException):
             tap_kafka.validate_config({'topic': 'my_topic',
                                        'group_id': 'my_group_id'})
 
         # Should raise an exception if initial_start_time is not valid
-        with pytest.raises(InvalidConfigException):
+        with self.assertRaises(InvalidConfigException):
             tap_kafka.validate_config({'topic': 'my_topic',
                                        'group_id': 'my_group_id',
                                        'bootstrap_servers': 'server1,server2,server3',
                                        'initial_start_time': 'invalid-iso8601-timestmap'})
 
         # Initial start time is a reserved word (latest)
-        assert tap_kafka.validate_config({'topic': 'my_topic',
-                                          'group_id': 'my_group_id',
-                                          'bootstrap_servers': 'server1,server2,server3',
-                                          'initial_start_time': 'latest'}) is None
+        self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'group_id': 'my_group_id',
+                                                     'bootstrap_servers': 'server1,server2,server3',
+                                                     'initial_start_time': 'latest'}))
 
         # Initial start time is a reserved word (earliset)
-        assert tap_kafka.validate_config({'topic': 'my_topic',
-                                          'group_id': 'my_group_id',
-                                          'bootstrap_servers': 'server1,server2,server3',
-                                          'initial_start_time': 'earliest'}) is None
+        self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'group_id': 'my_group_id',
+                                                     'bootstrap_servers': 'server1,server2,server3',
+                                                     'initial_start_time': 'earliest'}))
 
         # Initial start time is a valid iso 8601 timestamp
-        assert tap_kafka.validate_config({'topic': 'my_topic',
-                                          'group_id': 'my_group_id',
-                                          'bootstrap_servers': 'server1,server2,server3',
-                                          'initial_start_time': '2021-11-01 12:00:00'}) is None
+        self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'group_id': 'my_group_id',
+                                                     'bootstrap_servers': 'server1,server2,server3',
+                                                     'initial_start_time': '2021-11-01 12:00:00'}))
 
     def test_generate_schema_with_no_pk(self):
         """Should not add extra column when no PK defined"""
-        assert common.generate_schema([]) == \
+        self.assertEqual(common.generate_schema([]),
             {
                 "type": "object",
                 "properties": {
@@ -225,11 +224,11 @@ class TestSync(object):
                     "message_partition": {"type": ["integer", "null"]},
                     "message": {"type": ["object", "array", "string", "null"]}
                 }
-            }
+            })
 
     def test_generate_schema_with_pk(self):
         """Should add one extra column if PK defined"""
-        assert common.generate_schema(["id"]) == \
+        self.assertEqual(common.generate_schema(["id"]),
             {
                 "type": "object",
                 "properties": {
@@ -239,11 +238,11 @@ class TestSync(object):
                     "message_partition": {"type": ["integer", "null"]},
                     "message": {"type": ["object", "array", "string", "null"]}
                 }
-            }
+            })
 
     def test_generate_schema_with_composite_pk(self):
         """Should add multiple extra columns if composite PK defined"""
-        assert common.generate_schema(["id", "version"]) == \
+        self.assertEqual(common.generate_schema(["id", "version"]),
             {
                 "type": "object",
                 "properties": {
@@ -254,11 +253,11 @@ class TestSync(object):
                     "message_partition": {"type": ["integer", "null"]},
                     "message": {"type": ["object", "array", "string", "null"]}
                 }
-            }
+            })
 
     def test_generate_catalog_with_no_pk(self):
         """table-key-properties should be empty list when no PK defined"""
-        assert common.generate_catalog({"topic": "dummy_topic"}) == \
+        self.assertEqual(common.generate_catalog({"topic": "dummy_topic"}),
                [
                    {
                        "metadata": [
@@ -278,11 +277,11 @@ class TestSync(object):
                        },
                        "tap_stream_id": "dummy_topic"
                    }
-               ]
+               ])
 
     def test_generate_catalog_with_pk(self):
         """table-key-properties should be a list with single item when PK defined"""
-        assert common.generate_catalog({"topic": "dummy_topic", "primary_keys": {"id": "^.dummyJson.id"}}) == \
+        self.assertEqual(common.generate_catalog({"topic": "dummy_topic", "primary_keys": {"id": "^.dummyJson.id"}}),
                [
                    {
                        "metadata": [
@@ -303,11 +302,14 @@ class TestSync(object):
                        },
                        "tap_stream_id": "dummy_topic"
                    }
-               ]
+               ])
 
     def test_generate_catalog_with_composite_pk(self):
         """table-key-properties should be a list with two items when composite PK defined"""
-        assert common.generate_catalog({"topic": "dummy_topic", "primary_keys": {"id": "dummyJson.id", "version": "dummyJson.version"}}) == \
+        self.assertEqual(common.generate_catalog({"topic": "dummy_topic",
+                                                  "primary_keys":{
+                                                      "id": "dummyJson.id", "version": "dummyJson.version"}
+                                                  }),
                [
                    {
                        "metadata": [
@@ -329,63 +331,63 @@ class TestSync(object):
                        },
                        "tap_stream_id": "dummy_topic"
                    }
-               ]
+               ])
 
     def test_get_timestamp_from_timestamp_tuple__invalid_tuple(self):
         """Argument needs to be a tuple"""
         # Passing number should raise exception
-        with pytest.raises(InvalidTimestampException):
-            assert sync.get_timestamp_from_timestamp_tuple(0)
+        with self.assertRaises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple(0)
 
         # String should raise exception
-        with pytest.raises(InvalidTimestampException):
-            assert sync.get_timestamp_from_timestamp_tuple("not-a-tuple")
+        with self.assertRaises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple("not-a-tuple")
 
         # List should raise exception
-        with pytest.raises(InvalidTimestampException):
-            assert sync.get_timestamp_from_timestamp_tuple([])
+        with self.assertRaises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple([])
 
         # Valid timestamp but as list should raise exception
-        with pytest.raises(InvalidTimestampException):
-            assert sync.get_timestamp_from_timestamp_tuple([confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789])
+        with self.assertRaises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple([confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789])
 
         # Dict should raise exception
-        with pytest.raises(InvalidTimestampException):
-            assert sync.get_timestamp_from_timestamp_tuple({})
+        with self.assertRaises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple({})
 
         # Empty tuple should raise exception
-        with pytest.raises(InvalidTimestampException):
+        with self.assertRaises(InvalidTimestampException):
             sync.get_timestamp_from_timestamp_tuple(())
 
         # Tuple with one element should raise exception
-        with pytest.raises(InvalidTimestampException):
+        with self.assertRaises(InvalidTimestampException):
             sync.get_timestamp_from_timestamp_tuple(tuple([confluent_kafka.TIMESTAMP_CREATE_TIME]))
 
         # Zero timestamp should raise exception
-        with pytest.raises(InvalidTimestampException):
+        with self.assertRaises(InvalidTimestampException):
             sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 0))
 
         # Negative timestamp should raise exception
-        with pytest.raises(InvalidTimestampException):
+        with self.assertRaises(InvalidTimestampException):
             sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, -9876))
 
     def test_get_timestamp_from_timestamp_tuple__valid_tuple(self):
         """Argument needs to be a tuple"""
-        assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 9876)) == 9876
+        self.assertEqual(sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 9876)), 9876)
 
     def test_search_in_list_of_dict_by_key_value(self):
         """Search in list of dictionaries by key and value"""
         # No match should return -1
         list_of_dict = [{}, {'search_key': 'search_val_X'}]
-        assert sync.search_in_list_of_dict_by_key_value(list_of_dict, 'search_key', 'search_val') == -1
+        self.assertEqual(sync.search_in_list_of_dict_by_key_value(list_of_dict, 'search_key', 'search_val'), -1)
 
         # Should return second position (1)
         list_of_dict = [{}, {'search_key': 'search_val'}]
-        assert sync.search_in_list_of_dict_by_key_value(list_of_dict, 'search_key', 'search_val') == 1
+        self.assertEqual(sync.search_in_list_of_dict_by_key_value(list_of_dict, 'search_key', 'search_val'), 1)
 
         # Multiple match should return the first match postiong (0)
         list_of_dict = [{'search_key': 'search_val'}, {'search_key': 'search_val'}]
-        assert sync.search_in_list_of_dict_by_key_value(list_of_dict, 'search_key', 'search_val') == 0
+        self.assertEqual(sync.search_in_list_of_dict_by_key_value(list_of_dict, 'search_key', 'search_val'), 0)
 
     def test_send_activate_version_message(self):
         """ACTIVATE_VERSION message should be generated from bookmark"""
@@ -397,27 +399,27 @@ class TestSync(object):
         # If no bookmarked version then it should generate a timestamp
         state = _get_resource_from_json('state-with-bookmark-with-version.json')
         sync.send_activate_version_message(state, 'dummy_topic')
-        assert singer_messages == [
+        self.assertEqual(singer_messages, [
             {
                 'stream': 'dummy_topic',
                 'type': 'ACTIVATE_VERSION',
                 'version': 9999
             }
-        ]
+        ])
 
         # If no bookmarked version then it should generate a timestamp
         singer_messages = []
         now = int(time.time() * 1000)
         state = _get_resource_from_json('state-with-bookmark.json')
         sync.send_activate_version_message(state, 'dummy_topic')
-        assert singer_messages[0]['version'] >= now
-        assert singer_messages == [
+        self.assertGreaterEqual(singer_messages[0]['version'], now)
+        self.assertEqual(singer_messages, [
             {
                 'stream': 'dummy_topic',
                 'type': 'ACTIVATE_VERSION',
                 'version': singer_messages[0]['version']
             }
-        ]
+        ])
 
     def test_send_schema_message(self):
         """SCHEME message should be generated from catalog"""
@@ -432,7 +434,7 @@ class TestSync(object):
         stream = streams[topic_pos]
 
         sync.send_schema_message(stream)
-        assert singer_messages == [
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': 'dummy_topic',
@@ -448,7 +450,7 @@ class TestSync(object):
                 },
                 'key_properties': ['id']
             }
-        ]
+        ])
 
     def test_update_bookmark__on_empty_state(self):
         """Updating empty state should generate a new bookmark"""
@@ -459,8 +461,8 @@ class TestSync(object):
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
                                            offset=1234,
                                            partition=0)
-        assert sync.update_bookmark(input_state, topic, message) == \
-            {'bookmarks': {'test-topic': {'partition_0': {'partition': 0, 'offset': 1234, 'timestamp': 123456789}}}}
+        self.assertEqual(sync.update_bookmark(input_state, topic, message),
+            {'bookmarks': {'test-topic': {'partition_0': {'partition': 0, 'offset': 1234, 'timestamp': 123456789}}}})
 
     def test_update_bookmark__update_stream(self):
         """Updating existing bookmark in state should update at every property"""
@@ -474,10 +476,10 @@ class TestSync(object):
                                            offset=999,
                                            partition=0)
 
-        assert sync.update_bookmark(input_state, topic, message) == \
-            {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
-                                                                  'offset': 999,
-                                                                  'timestamp': 999999999}}}}
+        self.assertEqual(sync.update_bookmark(input_state, topic, message),
+                         {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
+                                                                               'offset': 999,
+                                                                               'timestamp': 999999999}}}})
 
     def test_update_bookmark__add_new_partition(self):
         """Updating existing bookmark in state should update at every property"""
@@ -491,13 +493,13 @@ class TestSync(object):
                                            offset=111,
                                            partition=1)
 
-        assert sync.update_bookmark(input_state, topic, message) == \
+        self.assertEqual(sync.update_bookmark(input_state, topic, message),
             {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
                                                                   'offset': 1234,
                                                                   'timestamp': 111},
                                                   'partition_1': {'partition': 1,
                                                                   'offset': 111,
-                                                                  'timestamp': 123456789}}}}
+                                                                  'timestamp': 123456789}}}})
 
     def test_update_bookmark__update_partition(self):
         """Updating existing bookmark in state should update at every property"""
@@ -514,13 +516,13 @@ class TestSync(object):
                                            offset=111,
                                            partition=1)
 
-        assert sync.update_bookmark(input_state, topic, message) == \
+        self.assertEqual(sync.update_bookmark(input_state, topic, message),
             {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
                                                                   'offset': 1234,
                                                                   'timestamp': 111},
                                                   'partition_1': {'partition': 1,
                                                                   'offset': 111,
-                                                                  'timestamp': 123456789}}}}
+                                                                  'timestamp': 123456789}}}})
 
     def test_update_bookmark__add_new_stream(self):
         """Updating a not existing stream id should be appended to the bookmarks dictionary"""
@@ -536,7 +538,7 @@ class TestSync(object):
                                            offset=111,
                                            partition=0)
 
-        assert sync.update_bookmark(input_state, 'test-topic-1', message) == \
+        self.assertEqual(sync.update_bookmark(input_state, 'test-topic-1', message),
             {'bookmarks': {'test-topic-0': {'partition_0': {'partition': 0,
                                                             'offset': 1234,
                                                             'timestamp': 111},
@@ -545,7 +547,7 @@ class TestSync(object):
                                                             'timestamp': 1234}},
                            'test-topic-1': {'partition_0': {'partition': 0,
                                                             'offset': 111,
-                                                            'timestamp': 123456789}}}}
+                                                            'timestamp': 123456789}}}})
 
     def test_update_bookmark__not_integer(self):
         """Timestamp in the bookmark should be auto-converted to int whenever it's possible"""
@@ -560,10 +562,10 @@ class TestSync(object):
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, "123456789"),
                                            offset=111,
                                            partition=0)
-        assert sync.update_bookmark(input_state, topic, message) == \
+        self.assertEqual(sync.update_bookmark(input_state, topic, message),
             {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
                                                                   'offset': 111,
-                                                                  'timestamp': 123456789}}}}
+                                                                  'timestamp': 123456789}}}})
 
         # Timestamp that cannot be converted to int should raise exception
         message = KafkaConsumerMessageMock(topic=topic,
@@ -571,8 +573,8 @@ class TestSync(object):
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, "this-is-not-numeric"),
                                            offset=111,
                                            partition=0)
-        with pytest.raises(InvalidTimestampException):
-            assert sync.update_bookmark(input_state, topic, message)
+        with self.assertRaises(InvalidTimestampException):
+            sync.update_bookmark(input_state, topic, message)
 
     @patch('tap_kafka.sync.commit_consumer_to_bookmarked_state')
     def test_consuming_records_with_no_state(self, commit_consumer_to_bookmarked_state):
@@ -587,7 +589,7 @@ class TestSync(object):
 
         # Run test
         singer_messages = _read_kafka_topic(self.config, state, kafka_messages)
-        assert singer_messages == [
+        self.assertEqual(singer_messages, [
             {
                 'type': 'ACTIVATE_VERSION',
                 'stream': 'dummy_topic',
@@ -639,10 +641,10 @@ class TestSync(object):
                     }
                 }
             }
-        ]
+        ])
 
         # Kafka commit should be called at least once
-        assert commit_consumer_to_bookmarked_state.call_count > 0
+        self.assertGreater(commit_consumer_to_bookmarked_state.call_count, 0)
 
     @patch('tap_kafka.sync.commit_consumer_to_bookmarked_state')
     def test_consuming_records_with_state(self, commit_consumer_to_bookmarked_state):
@@ -657,7 +659,7 @@ class TestSync(object):
 
         # Run test
         consumed_messages = _read_kafka_topic(self.config, state, kafka_messages)
-        assert consumed_messages == [
+        self.assertEqual(consumed_messages, [
             {
                 'type': 'ACTIVATE_VERSION',
                 'stream': 'dummy_topic',
@@ -709,10 +711,10 @@ class TestSync(object):
                     }
                 }
             }
-        ]
+        ])
 
         # Kafka commit should be called at least once
-        assert commit_consumer_to_bookmarked_state.call_count > 0
+        self.assertGreater(commit_consumer_to_bookmarked_state.call_count, 0)
 
     def test_kafka_message_to_singer_record(self):
         """Validate if kafka messages converted to singer messages correctly"""
@@ -725,12 +727,12 @@ class TestSync(object):
                                            offset=1234,
                                            partition=0)
         primary_keys = {}
-        assert sync.kafka_message_to_singer_record(message, primary_keys) == {
+        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'message_timestamp': 123456789,
             'message_offset': 1234,
             'message_partition': 0
-        }
+        })
 
         # Converting with primary key
         message = KafkaConsumerMessageMock(topic=topic,
@@ -739,13 +741,13 @@ class TestSync(object):
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id'}
-        assert sync.kafka_message_to_singer_record(message, primary_keys) == {
+        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'id': 1,
             'message_timestamp': 123456789,
             'message_offset': 1234,
             'message_partition': 0
-        }
+        })
 
         # Converting with nested and multiple primary keys
         message = KafkaConsumerMessageMock(topic=topic,
@@ -754,14 +756,14 @@ class TestSync(object):
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id', 'y': '/data/y'}
-        assert sync.kafka_message_to_singer_record(message, primary_keys) == {
+        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'id': 1,
             'y': 'value-y',
             'message_timestamp': 123456789,
             'message_offset': 1234,
             'message_partition': 0
-        }
+        })
 
         # Converting with not existing primary keys
         message = KafkaConsumerMessageMock(topic=topic,
@@ -770,13 +772,13 @@ class TestSync(object):
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id', 'not-existing-key': '/path/not/exists'}
-        assert sync.kafka_message_to_singer_record(message, primary_keys) == {
+        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'id': 1,
             'message_timestamp': 123456789,
             'message_offset': 1234,
             'message_partition': 0
-        }
+        })
 
     def test_commit_consumer_to_bookmarked_state(self):
         """Commit should commit every partition in the bookmark state"""
@@ -788,9 +790,9 @@ class TestSync(object):
                                                        'timestamp': 123456789}}}}
         consumer = KafkaConsumerMock(fake_messages=[])
         sync.commit_consumer_to_bookmarked_state(consumer, topic, state)
-        assert consumer.committed_offsets == [
+        self.assertEqual(consumer.committed_offsets, [
             confluent_kafka.TopicPartition(topic=topic, partition=0, offset=1234)
-        ]
+        ])
 
         # If multiple partitions bookmarked then need to commit every offset
         state = {'bookmarks': {topic: {'partition_0': {'partition': 0,
@@ -805,11 +807,11 @@ class TestSync(object):
                                        }}}
         consumer = KafkaConsumerMock(fake_messages=[])
         sync.commit_consumer_to_bookmarked_state(consumer, topic, state)
-        assert consumer.committed_offsets == [
+        self.assertEqual(consumer.committed_offsets, [
             confluent_kafka.TopicPartition(topic=topic, partition=0, offset=1234),
             confluent_kafka.TopicPartition(topic=topic, partition=1, offset=2345),
             confluent_kafka.TopicPartition(topic=topic, partition=2, offset=3456)
-        ]
+        ])
 
     def test_bookmarked_partition_to_next_position(self):
         """Transform a bookmarked partition to a kafka TopicPartition object"""
@@ -818,21 +820,21 @@ class TestSync(object):
 
         # By default TopicPartition offset needs to be bookmarked timestamp and not offset
         topic_partition = sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
-        assert topic_partition.topic == topic
-        assert topic_partition.partition == 0
-        assert topic_partition.offset == 1638132327000
+        self.assertEqual(topic_partition.topic, topic)
+        self.assertEqual(topic_partition.partition, 0)
+        self.assertEqual(topic_partition.offset, 1638132327000)
 
         # Assigning by timestamp explicitly should behave the same as not providing the assing_by parameter
         topic_partition = sync.bookmarked_partition_to_next_position(topic, partition_bookmark, assign_by='timestamp')
-        assert topic_partition.topic == topic
-        assert topic_partition.partition == 0
-        assert topic_partition.offset == 1638132327000
+        self.assertEqual(topic_partition.topic, topic)
+        self.assertEqual(topic_partition.partition, 0)
+        self.assertEqual(topic_partition.offset, 1638132327000)
 
         # Assigning by offset should increase the offset by 1, pointing to the next not consumed offset
         topic_partition = sync.bookmarked_partition_to_next_position(topic, partition_bookmark, assign_by='offset')
-        assert topic_partition.topic == topic
-        assert topic_partition.partition == 0
-        assert topic_partition.offset == 1235   # Bookmarked offset +1
+        self.assertEqual(topic_partition.topic, topic)
+        self.assertEqual(topic_partition.partition, 0)
+        self.assertEqual(topic_partition.offset, 1235)  # Bookmarked offset +1
 
     def test_bookmarked_partition_to_next_position__invalid_options(self):
         """Transform a bookmarked partition to a kafka TopicPartition object"""
@@ -840,32 +842,32 @@ class TestSync(object):
 
         # Empty bookmark should raise exception
         partition_bookmark = {}
-        with pytest.raises(InvalidBookmarkException):
+        with self.assertRaises(InvalidBookmarkException):
             sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
 
         # Partially provided bookmark - no partition
         partition_bookmark = {'offset': 1234, 'timestamp': 1638132327000}
-        with pytest.raises(InvalidBookmarkException):
+        with self.assertRaises(InvalidBookmarkException):
             sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
 
         # Should raise an exception if partition is not int
         partition_bookmark = {'partition': '0', 'offset': 1234, 'timestamp': 1638132327000}
-        with pytest.raises(InvalidBookmarkException):
+        with self.assertRaises(InvalidBookmarkException):
             sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
 
         # Should raise an exception if timestamp is not int
         partition_bookmark = {'partition': 0, 'offset': 1234, 'timestamp': '1638132327000'}
-        with pytest.raises(InvalidBookmarkException):
+        with self.assertRaises(InvalidBookmarkException):
             sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
 
         # Should raise an exception if offset is not int
         partition_bookmark = {'partition': 0, 'offset': '1234', 'timestamp': 1638132327000}
-        with pytest.raises(InvalidBookmarkException):
+        with self.assertRaises(InvalidBookmarkException):
             sync.bookmarked_partition_to_next_position(topic, partition_bookmark, assign_by='offset')
 
         # Assigning by invalid option
         partition_bookmark = {'partition': 0, 'offset': 1234, 'timestamp': 1638132327000}
-        with pytest.raises(InvalidAssignByKeyException):
+        with self.assertRaises(InvalidAssignByKeyException):
             sync.bookmarked_partition_to_next_position(topic, partition_bookmark, assign_by='invalid-option')
 
     def test_do_disovery_failure(self):
@@ -878,62 +880,62 @@ class TestSync(object):
         }
         config = tap_kafka.generate_config(minimal_config)
 
-        with pytest.raises(DiscoveryException):
+        with self.assertRaises(DiscoveryException):
             tap_kafka.do_discovery(config)
 
     def test_get_timestamp_from_timestamp_tuple(self):
         """Validate if the actual timestamp can be extracted from a kafka timestamp"""
         # Timestamps as tuples
-        assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 1234)) == 1234
-        assert sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_LOG_APPEND_TIME, 1234)) == 1234
+        self.assertEqual(sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 1234)), 1234)
+        self.assertEqual(sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_LOG_APPEND_TIME, 1234)), 1234)
 
         # Timestamp not available
-        with pytest.raises(TimestampNotAvailableException):
+        with self.assertRaises(TimestampNotAvailableException):
             sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_NOT_AVAILABLE, 1234))
 
         # Invalid timestamp type
-        with pytest.raises(InvalidTimestampException):
+        with self.assertRaises(InvalidTimestampException):
             sync.get_timestamp_from_timestamp_tuple(([confluent_kafka.TIMESTAMP_CREATE_TIME, 1234], 1234))
 
         # Invalid timestamp type
-        with pytest.raises(InvalidTimestampException):
+        with self.assertRaises(InvalidTimestampException):
             sync.get_timestamp_from_timestamp_tuple((9999, 1234))
 
         # Invalid timestamp type
-        with pytest.raises(InvalidTimestampException):
+        with self.assertRaises(InvalidTimestampException):
             sync.get_timestamp_from_timestamp_tuple("not_a_tuple_or_list")
 
     def test_initial_start_time_to_offset_reset(self):
         """Initial start time can be one of 'latest', 'earliest' or an ISO timestamp"""
         # Earliest should return earliest
-        assert sync.initial_start_time_to_offset_reset('earliest') == 'earliest'
+        self.assertEqual(sync.initial_start_time_to_offset_reset('earliest'), 'earliest')
 
         # Anything else should return latest. Every string, ISO timestamps or non string values
-        assert sync.initial_start_time_to_offset_reset('latest') == 'latest'
-        assert sync.initial_start_time_to_offset_reset('2021-11-01 16:00:30') == 'latest'
-        assert sync.initial_start_time_to_offset_reset(None) == 'latest'
-        assert sync.initial_start_time_to_offset_reset(1234) == 'latest'
+        self.assertEqual(sync.initial_start_time_to_offset_reset('latest'), 'latest')
+        self.assertEqual(sync.initial_start_time_to_offset_reset('2021-11-01 16:00:30'), 'latest')
+        self.assertEqual(sync.initial_start_time_to_offset_reset(None), 'latest')
+        self.assertEqual(sync.initial_start_time_to_offset_reset(1234), 'latest')
 
     def test_iso_timestamp_to_epoch(self):
         """Validate converting ISO timestamps to epoch milliseconds"""
         # Using space as date and time delimiter
-        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11') == 1635807671000
-        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123') == 1635807671123
-        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123456') == 1635807671123
-        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123987') == 1635807671123
-        assert sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123987+00:00') == 1635807671123
-        assert sync.iso_timestamp_to_epoch('2021-11-02 02:01:11.123987+03:00') == 1635807671123
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01 23:01:11'), 1635807671000)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123'), 1635807671123)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123456'), 1635807671123)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123987'), 1635807671123)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01 23:01:11.123987+00:00'), 1635807671123)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-02 02:01:11.123987+03:00'), 1635807671123)
 
         # Using T as date and time delimiter
-        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11') == 1635807671000
-        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123') == 1635807671123
-        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123456') == 1635807671123
-        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123987') == 1635807671123
-        assert sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123987+00:00') == 1635807671123
-        assert sync.iso_timestamp_to_epoch('2021-11-02T02:01:11.123987+03:00') == 1635807671123
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01T23:01:11'), 1635807671000)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123'), 1635807671123)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123456'), 1635807671123)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123987'), 1635807671123)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-01T23:01:11.123987+00:00'), 1635807671123)
+        self.assertEqual(sync.iso_timestamp_to_epoch('2021-11-02T02:01:11.123987+03:00'), 1635807671123)
 
         # Invalid ISO 8601 format should raise exception
-        with pytest.raises(InvalidTimestampException):
+        with self.assertRaises(InvalidTimestampException):
             sync.iso_timestamp_to_epoch('invalid-timestamp')
 
     @patch('tap_kafka.sync.assign_consumer_to_bookmarked_state')
@@ -943,33 +945,33 @@ class TestSync(object):
 
         # Should not assign if both state and initial_start_time are empty
         sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time=None)
-        assert assign_consumer_to_timestamp.call_count == 0
-        assert assign_consumer_to_bookmarked_state.call_count == 0
+        self.assertEqual(assign_consumer_to_timestamp.call_count, 0)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 0)
 
         # Should assign by bookmark if initial_start_time is the reserver 'latest'
         sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='latest')
-        assert assign_consumer_to_timestamp.call_count == 0
-        assert assign_consumer_to_bookmarked_state.call_count == 1
+        self.assertEqual(assign_consumer_to_timestamp.call_count, 0)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 1)
 
         # Should assign by bookmark if initial_start_time is the reserver 'earliest'
         sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='earliest')
-        assert assign_consumer_to_timestamp.call_count == 0
-        assert assign_consumer_to_bookmarked_state.call_count == 2
+        self.assertEqual(assign_consumer_to_timestamp.call_count, 0)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 2)
 
         # Should assign by timestamp if state not provided and initial_start_time is an ISO 8601 timestamp
         sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='2021-11-01 12:00:00')
-        assert assign_consumer_to_timestamp.call_count == 1
-        assert assign_consumer_to_bookmarked_state.call_count == 2
+        self.assertEqual(assign_consumer_to_timestamp.call_count, 1)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 2)
 
         # Should assign by bookmark if bookmark provided
         sync.assign_consumer(consumer, topic='test-topic', state={'bmrk': []}, initial_start_time=None)
-        assert assign_consumer_to_timestamp.call_count == 1
-        assert assign_consumer_to_bookmarked_state.call_count == 3
+        self.assertEqual(assign_consumer_to_timestamp.call_count, 1)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 3)
 
         # Should not assign by bookmark if both state and initial_start_time are provided
         sync.assign_consumer(consumer, topic='test-topic', state={'bmrk': []}, initial_start_time='2021-11-01 12:00:00')
-        assert assign_consumer_to_timestamp.call_count == 1
-        assert assign_consumer_to_bookmarked_state.call_count == 4
+        self.assertEqual(assign_consumer_to_timestamp.call_count, 1)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 4)
 
 
 if __name__ == '__main__':
