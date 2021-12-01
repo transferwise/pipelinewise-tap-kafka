@@ -78,19 +78,14 @@ def iso_timestamp_to_epoch(iso_timestamp: str) -> int:
 def assign_consumer(consumer, topic: str, state: dict, initial_start_time: str) -> None:
     """Assign consumer to the right position where we need to start consuming data from
 
-    If state is empty and the initial_start_time is a timestamp and not a reserved word
-    then assign each partition to the offsets at the provided timestamp.
-
-    If state exists then assign each partition to the positions in the state
-
-    If both state and initial_start_time are empty then should not assign"""
-    if not state and not initial_start_time:
-        return
-
-    if not state and initial_start_time not in ['latest', 'earliest']:
-        assign_consumer_to_timestamp(consumer, topic, initial_start_time)
-    else:
+    * If state exists then assign each partition to the positions in the state
+    * If state is empty and the initial_start_time is a timestamp and not a reserved word
+      then assign each partition to the offsets at the provided timestamp.
+    * Otherwise do not assign"""
+    if state:
         assign_consumer_to_bookmarked_state(consumer, topic, state)
+    elif initial_start_time is not None and initial_start_time not in ['latest', 'earliest']:
+        assign_consumer_to_timestamp(consumer, topic, initial_start_time)
 
 
 def init_kafka_consumer(kafka_config, state):

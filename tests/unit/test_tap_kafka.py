@@ -948,30 +948,30 @@ class TestSync(unittest.TestCase):
         self.assertEqual(assign_consumer_to_timestamp.call_count, 0)
         self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 0)
 
-        # Should assign by bookmark if initial_start_time is the reserver 'latest'
+        # Should not assign if state is empty and initial_start_time is the reserved 'latest'
         sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='latest')
         self.assertEqual(assign_consumer_to_timestamp.call_count, 0)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 1)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 0)
 
-        # Should assign by bookmark if initial_start_time is the reserver 'earliest'
+        # Should not assign if state is empty and initial_start_time is the reserved 'earliest'
         sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='earliest')
         self.assertEqual(assign_consumer_to_timestamp.call_count, 0)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 2)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 0)
 
         # Should assign by timestamp if state not provided and initial_start_time is an ISO 8601 timestamp
         sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='2021-11-01 12:00:00')
         self.assertEqual(assign_consumer_to_timestamp.call_count, 1)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 2)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 0)
 
         # Should assign by bookmark if bookmark provided
         sync.assign_consumer(consumer, topic='test-topic', state={'bmrk': []}, initial_start_time=None)
         self.assertEqual(assign_consumer_to_timestamp.call_count, 1)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 3)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 1)
 
-        # Should not assign by bookmark if both state and initial_start_time are provided
+        # Should assign by bookmark if both state and initial_start_time are provided
         sync.assign_consumer(consumer, topic='test-topic', state={'bmrk': []}, initial_start_time='2021-11-01 12:00:00')
         self.assertEqual(assign_consumer_to_timestamp.call_count, 1)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 4)
+        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 2)
 
 
 if __name__ == '__main__':
