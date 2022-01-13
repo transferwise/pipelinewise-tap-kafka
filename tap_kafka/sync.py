@@ -33,7 +33,7 @@ def search_in_list_of_dict_by_key_value(d_list, key, value):
 
 
 def init_value_deserializer(kafka_config):
-    """..."""
+    """Initialise the value deserializer"""
     value_deserializer = None
     if kafka_config['message_format'] == 'json':
         value_deserializer = JSONSimpleDeserializer()
