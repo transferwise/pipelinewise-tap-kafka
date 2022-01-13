@@ -1,4 +1,5 @@
 """pipelinewise-tap-kafka"""
+import os
 import sys
 import json
 import singer
@@ -27,6 +28,9 @@ DEFAULT_SESSION_TIMEOUT_MS = 30000
 DEFAULT_HEARTBEAT_INTERVAL_MS = 10000
 DEFAULT_MAX_POLL_INTERVAL_MS = 300000
 DEFAULT_MAX_POLL_RECORDS = 500
+DEFAULT_MESSAGE_FORMAT = 'json'
+DEFAULT_PROTO_SCHEMA = None
+DEFAULT_PROTO_CLASSES_DIR = os.path.join(os.getcwd(), 'tap-kafka-proto-classes')
 
 
 def dump_catalog(all_streams):
@@ -83,6 +87,11 @@ def validate_config(config) -> None:
             raise InvalidConfigException("Invalid config. initial_start_time needs to be one of 'earliest', "
                                          "'latest' or a valid ISO-8601 formatted timestamp string")
 
+    if config.get('message_format') not in ['json', 'protobuf']:
+        raise InvalidConfigException("Invalid config. message_format needs to be one of 'json' or 'protobuf'")
+
+    if config.get('message_format') == 'protobuf' and not config.get('proto_schema'):
+        raise InvalidConfigException("Invalid config. Cannot find required proto_schema for protobuf message type")
 
 def generate_config(args_config):
     config = {
@@ -100,7 +109,10 @@ def generate_config(args_config):
         'session_timeout_ms': args_config.get('session_timeout_ms', DEFAULT_SESSION_TIMEOUT_MS),
         'heartbeat_interval_ms': args_config.get('heartbeat_interval_ms', DEFAULT_HEARTBEAT_INTERVAL_MS),
         'max_poll_records': args_config.get('max_poll_records', DEFAULT_MAX_POLL_RECORDS),
-        'max_poll_interval_ms': args_config.get('max_poll_interval_ms', DEFAULT_MAX_POLL_INTERVAL_MS)
+        'max_poll_interval_ms': args_config.get('max_poll_interval_ms', DEFAULT_MAX_POLL_INTERVAL_MS),
+        'message_format': args_config.get('message_format', DEFAULT_MESSAGE_FORMAT),
+        'proto_schema': args_config.get('proto_schema', DEFAULT_PROTO_SCHEMA),
+        'proto_classes_dir': args_config.get('proto_classes_dir', DEFAULT_PROTO_CLASSES_DIR),
     }
 
     validate_config(config)

@@ -1,6 +1,22 @@
 import orjson
+
 from confluent_kafka.serialization import Deserializer
+from confluent_kafka.serialization import Serializer
 from confluent_kafka.serialization import SerializationError
+
+
+class JSONSimpleSerializer(Serializer):
+    """
+    Serializes a Python object to JSON formatted string.
+    """
+    def __call__(self, obj, ctx):
+        if obj is None:
+            return None
+
+        try:
+            return orjson.dumps(obj)
+        except orjson.JSONDecodeError as e:
+            raise SerializationError(str(e))
 
 
 class JSONSimpleDeserializer(Deserializer):

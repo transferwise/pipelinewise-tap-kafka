@@ -1,7 +1,7 @@
 version: '3.9'
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:5.5.2
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -11,7 +11,7 @@ services:
       - tap_kafka_network
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:5.5.2
     depends_on:
       - zookeeper
     ports:
@@ -25,6 +25,41 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     networks:
       - tap_kafka_network
+
+  schema_registry:
+    image: confluentinc/cp-schema-registry:5.5.2
+    depends_on:
+      - zookeeper
+      - kafka
+    ports:
+      - 8081:8081
+    networks:
+      - tap_kafka_network
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema_registry
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: zookeeper:2181
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+
+  control_center:
+    image: confluentinc/cp-enterprise-control-center:5.3.4
+    depends_on:
+      - zookeeper
+      - kafka
+      - schema_registry
+    ports:
+      - 9021:9021
+    networks:
+      - tap_kafka_network
+    environment:
+      CONTROL_CENTER_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+      CONTROL_CENTER_ZOOKEEPER_CONNECT: zookeeper:2181
+      CONTROL_CENTER_SCHEMA_REGISTRY_URL: PLAINTEXT://schema_registry:8081
+      CONTROL_CENTER_REPLICATION_FACTOR: 1
+      CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
+      CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
+      CONFLUENT_METRICS_TOPIC_REPLICATION: 1
+#      HOST: localhost
+#      PORT: 9021
 
 networks:
   tap_kafka_network:

@@ -9,10 +9,13 @@ import confluent_kafka
 
 from singer import utils, metadata
 from tap_kafka.errors import InvalidBookmarkException
+from tap_kafka.errors import InvalidConfigException
 from tap_kafka.errors import InvalidTimestampException
 from tap_kafka.errors import TimestampNotAvailableException
 from tap_kafka.errors import InvalidAssignByKeyException
 from tap_kafka.serialization.json_with_no_schema import JSONSimpleDeserializer
+from tap_kafka.serialization.protobuf import ProtobufDictDeserializer
+from tap_kafka.serialization.protobuf import proto_to_message_type
 
 LOGGER = singer.get_logger('tap_kafka')
 
@@ -28,6 +31,24 @@ def search_in_list_of_dict_by_key_value(d_list, key, value):
             return idx
     return -1
 
+
+def init_value_deserializer(kafka_config):
+    """..."""
+    value_deserializer = None
+    if kafka_config['message_format'] == 'json':
+        value_deserializer = JSONSimpleDeserializer()
+
+    elif kafka_config['message_format'] == 'protobuf':
+        message_type = proto_to_message_type(kafka_config['proto_schema'],
+                                             kafka_config['proto_classes_dir'])
+        value_deserializer = ProtobufDictDeserializer(message_type, {
+            'use.deprecated.format': False
+        })
+
+    if not value_deserializer:
+        raise InvalidConfigException(f"Unknown message format: {kafka_config['message_format']}")
+
+    return value_deserializer
 
 def send_activate_version_message(state, tap_stream_id):
     """Generate and send singer ACTIVATE message"""
@@ -88,7 +109,7 @@ def assign_consumer(consumer, topic: str, state: dict, initial_start_time: str) 
         assign_consumer_to_timestamp(consumer, topic, initial_start_time)
 
 
-def init_kafka_consumer(kafka_config, state):
+def init_kafka_consumer(kafka_config, state, value_deserializer):
     LOGGER.info('Initialising Kafka Consumer...')
     topic = kafka_config['topic']
     initial_start_time = kafka_config['initial_start_time']
@@ -105,7 +126,7 @@ def init_kafka_consumer(kafka_config, state):
         # Non-configurable parameters
         'enable.auto.commit': False,
         'auto.offset.reset': initial_start_time_to_offset_reset(initial_start_time),
-        'value.deserializer': JSONSimpleDeserializer(),
+        'value.deserializer': value_deserializer,
     })
 
     consumer.subscribe([topic])
@@ -315,12 +336,14 @@ def do_sync(kafka_config, catalog, state):
     # Only one stream
     streams = catalog.get('streams', [])
     topic_pos = search_in_list_of_dict_by_key_value(streams, 'tap_stream_id', topic)
+    value_deserializer = init_value_deserializer(kafka_config)
+
     if topic_pos != -1:
         # Send the initial schema message
         send_schema_message(streams[topic_pos])
 
         # Start consuming new messages from kafka
-        consumer = init_kafka_consumer(kafka_config, state)
+        consumer = init_kafka_consumer(kafka_config, state, value_deserializer)
         read_kafka_topic(consumer, kafka_config, state)
     else:
         raise Exception(f'Invalid catalog object. Cannot find {topic} in catalog')

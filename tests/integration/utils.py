@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from typing import Dict, List
 
-from confluent_kafka import Producer
+from confluent_kafka import SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 
 
@@ -67,12 +67,31 @@ def generate_unique_consumer_group(prefix='tap_kafka_integration_test'):
     return f"{prefix}{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
+def test_message_to_string(message: str, conf: dict = {}) -> object:
+    message_dict = json.loads(message)
+    message_key = str(message_dict['message_key'])
+    message_value = message_dict['message']
+
+    return {'key': message_key,
+            'value': message_value}
+
+
+def test_message_to_protobuf(message: str, conf: dict) -> object:
+    message_dict = json.loads(message)
+    message_key = message_dict['message_key']
+    message_value = conf['proto_fn'](message_dict['message'], conf['message_type'])
+
+    return {'key': message_key,
+            'value': message_value}
+
+
 def produce_messages(
-        bootstrap_servers: str,
+        producer_config: dict,
         topic_name: str,
-        messages: List[str]
+        test_messages: List[str],
+        test_message_transformer
 ) -> None:
-    p = Producer({'bootstrap.servers': bootstrap_servers})
+    p = SerializingProducer(producer_config)
 
     def delivery_report(err, msg):
         if err is not None:
@@ -80,12 +99,17 @@ def produce_messages(
         else:
             print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
-    for message in messages:
-        msg_dict = json.loads(message)
-        msg_key = str(msg_dict['message_key'])
-        msg_value = json.dumps(msg_dict['message'])
+    # Transformer from JSON test messages to desired types
+    transformer_func = test_message_transformer['func']
+    transformer_conf = test_message_transformer.get('conf', {})
+
+    for test_message in test_messages:
+        test_message_dict = transformer_func(test_message, transformer_conf)
+
+        kafka_msg_key = test_message_dict['key']
+        kafka_msg_value = test_message_dict['value']
 
         p.poll(0)
-        p.produce(topic_name, msg_value, key=msg_key, callback=delivery_report)
+        p.produce(topic_name, key=kafka_msg_key, value=kafka_msg_value, on_delivery=delivery_report)
 
     p.flush()
