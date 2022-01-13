@@ -21,7 +21,7 @@ setup(name='pipelinewise-tap-kafka',
           'dpath==2.0.1',
           'filelock==3.0.12',
           'confluent-kafka[protobuf]==1.8.2',
-          'grpcio-tools==1.42.0'
+          'grpcio-tools==1.43.0'
       ],
       extras_require={
           'test': [
