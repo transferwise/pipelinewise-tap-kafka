@@ -16,7 +16,7 @@ class JSONSimpleSerializer(Serializer):
         try:
             return orjson.dumps(obj)
         except orjson.JSONDecodeError as e:
-            raise SerializationError(str(e))
+            raise SerializationError(e)
 
 
 class JSONSimpleDeserializer(Deserializer):
