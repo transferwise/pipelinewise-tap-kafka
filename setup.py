@@ -33,5 +33,5 @@ setup(name='pipelinewise-tap-kafka',
           [console_scripts]
           tap-kafka=tap_kafka:main
       ''',
-      packages=['tap_kafka']
+      packages=['tap_kafka', 'tap_kafka.serialization']
 )
