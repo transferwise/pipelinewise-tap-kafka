@@ -1,3 +1,8 @@
+5.0.1 (2022-01-26)
+------------------
+
+- Fixed an issue when `tap_kafka.serialization` module not included in the package
+
 5.0.0 (2022-01-24)
 ------------------
 
