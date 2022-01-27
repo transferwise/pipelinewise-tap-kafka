@@ -17,7 +17,7 @@ class JSONSimpleSerializer(Serializer):
         try:
             return orjson.dumps(obj)  # pylint: disable=E1101
         except orjson.JSONDecodeError as e:  # pylint: disable=E1101
-            raise SerializationError(str(e))
+            raise SerializationError(e)
 
 
 # pylint: disable=R0903
@@ -43,4 +43,4 @@ class JSONSimpleDeserializer(Deserializer):
         try:
             return orjson.loads(value)  # pylint: disable=E1101
         except orjson.JSONDecodeError as e: # pylint: disable=E1101
-            raise SerializationError(str(e))
+            raise SerializationError(e)
