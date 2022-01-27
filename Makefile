@@ -3,10 +3,10 @@ ZOOKEEPER_CLIENT_PORT = 2181
 KAFKA_PORT = 29092
 
 .run_pytest_unit:
-	@$(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=76 tests/unit -v
+	@$(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=78 tests/unit -v
 
 .run_pytest_integration:
-	@TAP_KAFKA_BOOTSTRAP_SERVERS=localhost:${KAFKA_PORT} $(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=78 tests/integration -v
+	@TAP_KAFKA_BOOTSTRAP_SERVERS=localhost:${KAFKA_PORT} $(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=81 tests/integration -v
 
 virtual_env:
 	@echo "Making Virtual Environment in $(VENV_DIR)..."

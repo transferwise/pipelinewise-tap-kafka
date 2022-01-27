@@ -1,3 +1,10 @@
+class InvalidConfigException(Exception):
+    """
+    Exception to raise when the config is not valid
+    """
+    pass
+
+
 class InvalidBookmarkException(Exception):
     """
     Exception to raise when bookmark is not valid
@@ -22,5 +29,12 @@ class InvalidTimestampException(Exception):
 class TimestampNotAvailableException(Exception):
     """
     Exception to raise when timestamp not available in a kafka message
+    """
+    pass
+
+
+class InvalidAssignByKeyException(Exception):
+    """
+    Exception to raise when consumer assigned by an invalid option
     """
     pass

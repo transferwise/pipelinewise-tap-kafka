@@ -2,22 +2,22 @@
 import time
 import copy
 import dpath.util
+import dateutil
 
 import singer
 import confluent_kafka
 
 from singer import utils, metadata
-from tap_kafka.errors import InvalidTimestampException, TimestampNotAvailableException
-from tap_kafka.local_store import LocalStore
+from tap_kafka.errors import InvalidBookmarkException
+from tap_kafka.errors import InvalidTimestampException
+from tap_kafka.errors import TimestampNotAvailableException
+from tap_kafka.errors import InvalidAssignByKeyException
 from tap_kafka.serialization.json_with_no_schema import JSONSimpleDeserializer
-
-from .errors import InvalidBookmarkException
 
 LOGGER = singer.get_logger('tap_kafka')
 
-LOG_MESSAGES_PERIOD = 1000          # Print log messages to stderr after every nth messages
-UPDATE_BOOKMARK_PERIOD = 1000       # Update and send bookmark to stdout after nth messages
-CLEANUP_LOCAL_STORE_INTERVAL = 30   # Seconds between cleanup processes in the local store
+LOG_MESSAGES_PERIOD = 5000  # Print log messages to stderr after every nth messages
+SEND_STATE_PERIOD = 5000    # Update and send bookmark to stdout after nth messages
 
 
 def search_in_list_of_dict_by_key_value(d_list, key, value):
@@ -47,30 +47,51 @@ def send_schema_message(stream):
     singer.write_message(singer.SchemaMessage(
         stream=stream['tap_stream_id'],
         schema=stream['schema'],
-        key_properties=pks,
-        bookmark_properties=pks))
+        key_properties=pks))
 
 
-def update_bookmark(state, topic, timestamp):
+def update_bookmark(state, topic, message):
     """Update bookmark with a new timestamp"""
+    return singer.write_bookmark(state,
+                                 topic,
+                                 f'partition_{message.partition()}',
+                                 {
+                                     'partition': message.partition(),
+                                     'offset': message.offset(),
+                                     'timestamp': get_timestamp_from_timestamp_tuple(message.timestamp())
+                                 })
+
+
+def initial_start_time_to_offset_reset(initial_start_time: str) -> str:
+    """Convert initial_start_time to corresponding kafka auto_offset_reset"""
+    return 'earliest' if initial_start_time == 'earliest' else 'latest'
+
+
+def iso_timestamp_to_epoch(iso_timestamp: str) -> int:
+    """Convert an ISO 8601 formatted string to epoch in milliseconds"""
     try:
-        timestamp = float(timestamp) if timestamp else 0
-    except ValueError:
-        raise InvalidBookmarkException(f'The timestamp in the bookmark for {topic} stream is not numeric')
-
-    return singer.write_bookmark(state, topic, 'timestamp', timestamp)
+        return int(dateutil.parser.parse(iso_timestamp).timestamp() * 1000)
+    except dateutil.parser.ParserError:
+        raise InvalidTimestampException(f'{iso_timestamp} is not a valid ISO formatted string.')
 
 
-def init_local_store(kafka_config):
-    LOGGER.info('Initialising local store at %s', kafka_config['local_store_dir'])
-    return LocalStore(
-        directory=kafka_config['local_store_dir'],
-        batch_size_rows=kafka_config['local_store_batch_size_rows'],
-        topic=kafka_config['topic'])
+def assign_consumer(consumer, topic: str, state: dict, initial_start_time: str) -> None:
+    """Assign consumer to the right position where we need to start consuming data from
+
+    * If state exists then assign each partition to the positions in the state
+    * If state is empty and the initial_start_time is a timestamp and not a reserved word
+      then assign each partition to the offsets at the provided timestamp.
+    * Otherwise do not assign"""
+    if state:
+        assign_consumer_to_bookmarked_state(consumer, topic, state)
+    elif initial_start_time is not None and initial_start_time not in ['latest', 'earliest']:
+        assign_consumer_to_timestamp(consumer, topic, initial_start_time)
 
 
-def init_kafka_consumer(kafka_config):
+def init_kafka_consumer(kafka_config, state):
     LOGGER.info('Initialising Kafka Consumer...')
+    topic = kafka_config['topic']
+    initial_start_time = kafka_config['initial_start_time']
     consumer = confluent_kafka.DeserializingConsumer({
         # Required parameters
         'bootstrap.servers': kafka_config['bootstrap_servers'],
@@ -83,10 +104,12 @@ def init_kafka_consumer(kafka_config):
 
         # Non-configurable parameters
         'enable.auto.commit': False,
-        'auto.offset.reset': 'earliest',
+        'auto.offset.reset': initial_start_time_to_offset_reset(initial_start_time),
         'value.deserializer': JSONSimpleDeserializer(),
     })
-    consumer.subscribe([kafka_config['topic']])
+
+    consumer.subscribe([topic])
+    assign_consumer(consumer, topic, state, initial_start_time)
 
     return consumer
 
@@ -94,27 +117,39 @@ def init_kafka_consumer(kafka_config):
 def get_timestamp_from_timestamp_tuple(kafka_ts: tuple) -> float:
     """Get the actual timestamp value from a kafka timestamp tuple"""
     if isinstance(kafka_ts, tuple):
-        ts_type = kafka_ts[0]
+        try:
+            ts_type = kafka_ts[0]
 
-        if ts_type == confluent_kafka.TIMESTAMP_NOT_AVAILABLE:
-            raise TimestampNotAvailableException('Required timestamp not available in the kafka message.')
+            if ts_type == confluent_kafka.TIMESTAMP_NOT_AVAILABLE:
+                raise TimestampNotAvailableException('Required timestamp not available in the kafka message.')
 
-        if ts_type in [confluent_kafka.TIMESTAMP_CREATE_TIME, confluent_kafka.TIMESTAMP_LOG_APPEND_TIME]:
-            return kafka_ts[1]
+            if ts_type in [confluent_kafka.TIMESTAMP_CREATE_TIME, confluent_kafka.TIMESTAMP_LOG_APPEND_TIME]:
+                try:
+                    timestamp = int(kafka_ts[1])
+                    if timestamp > 0:
+                        return timestamp
 
-        raise InvalidTimestampException(f'Invalid timestamp tuple. Timestamp type {ts_type} is not valid.')
+                    raise InvalidTimestampException(f'Invalid timestamp tuple. '
+                                                    f'Timestamp {timestamp} needs to be greater than zero.')
+                except ValueError:
+                    raise InvalidTimestampException(f'Invalid timestamp tuple. Timestamp {kafka_ts[1]} is not integer.')
+
+            raise InvalidTimestampException(f'Invalid timestamp tuple. Timestamp type {ts_type} is not valid.')
+        except IndexError:
+            raise InvalidTimestampException(f'Invalid timestamp tuple. '
+                                            f'Timestamp type {kafka_ts} should have two elements.')
 
     raise InvalidTimestampException(f'Invalid kafka timestamp. It needs to be a tuple but it is a {type(kafka_ts)}.')
 
 
-def kafka_message_to_singer_record(message, topic, primary_keys):
+def kafka_message_to_singer_record(message, primary_keys):
     """Transforms kafka message to singer record message"""
     # Create dictionary with base attributes
     record = {
         "message": message.value(),
-        "message_timestamp": get_timestamp_from_timestamp_tuple(message.timestamp()),
+        "message_partition": message.partition(),
         "message_offset": message.offset(),
-        "message_partition": message.partition()
+        "message_timestamp": get_timestamp_from_timestamp_tuple(message.timestamp()),
     }
 
     # Add primary keys to the record message
@@ -130,43 +165,90 @@ def kafka_message_to_singer_record(message, topic, primary_keys):
     return record
 
 
-def consume_kafka_message(message, topic, primary_keys, local_store):
+def consume_kafka_message(message, topic, primary_keys):
     """Insert single kafka message into the internal store"""
-    singer_record = kafka_message_to_singer_record(message, topic, primary_keys)
-    singer_record_message = singer.format_message(singer.RecordMessage(stream=topic,
-                                                                       record=singer_record,
-                                                                       time_extracted=utils.now()))
-    insert_ts = local_store.insert(singer_record_message)
-    return insert_ts
+    singer_record = kafka_message_to_singer_record(message, primary_keys)
+    singer.write_message(singer.RecordMessage(stream=topic, record=singer_record, time_extracted=utils.now()))
 
 
-def commit_kafka_consumer(consumer, message):
-    """Commit consumed message to kafka"""
-    consumer.commit(message)
+def bookmarked_partition_to_next_position(topic: str,
+                                          partition_bookmark: dict,
+                                          assign_by: str = 'timestamp') -> confluent_kafka.TopicPartition:
+    """Transform a bookmarked partition to a kafka TopicPartition object"""
+    try:
+        if assign_by == 'timestamp':
+            assign_to = partition_bookmark['timestamp']
+        elif assign_by == 'offset':
+            assign_to = partition_bookmark['offset'] + 1
+        else:
+            raise InvalidAssignByKeyException(f"Cannot set the consumer assignment by '{assign_by}'")
+
+        return confluent_kafka.TopicPartition(topic, partition_bookmark['partition'], assign_to)
+    except KeyError:
+        raise InvalidBookmarkException(f"Invalid bookmark. Bookmark does not include 'partition' or '{assign_by}' "
+                                       f"key(s).")
+    except TypeError:
+        raise InvalidBookmarkException(f"Invalid bookmark. One or more bookmark entries using invalid type(s).")
+
+
+def assign_consumer_to_timestamp(consumer, topic: str, timestamp: str, timeout: int = 30) -> None:
+    """Assign consumer topic of all partitions to given timestamp"""
+    # Get list of all partitions
+    cluster_md = consumer.list_topics(topic=topic, timeout=timeout)
+    topic_md = cluster_md.topics[topic]
+    partitions = topic_md.partitions
+
+    # Find the offset of partitions by timestamps
+    epoch = iso_timestamp_to_epoch(timestamp)
+    partitions_list = [confluent_kafka.TopicPartition(topic, p, epoch) for p in partitions]
+    partitions_to_assign = consumer.offsets_for_times(partitions_list)
+
+    # Assign to the correct position
+    consumer.assign(partitions_to_assign)
+
+
+def assign_consumer_to_bookmarked_state(consumer, topic: str, state, assign_by: str = 'timestamp') -> None:
+    """Assign consumer to bookmarked positions"""
+    bookmarked_partitions = state['bookmarks'][topic]
+    partitions_to_assign = [bookmarked_partition_to_next_position(topic,
+                                                                  bookmarked_partitions[p],
+                                                                  assign_by=assign_by) for p in bookmarked_partitions]
+    # Translate timestamps to offsets if located by timestamp
+    if partitions_to_assign and assign_by == 'timestamp':
+        partitions_to_assign = consumer.offsets_for_times(partitions_to_assign)
+
+    consumer.assign(partitions_to_assign)
+
+
+def commit_consumer_to_bookmarked_state(consumer, topic, state):
+    """Commit every bookmarked offset to kafka"""
+    offsets_to_commit = []
+    bookmarked_partitions = state.get('bookmarks', {}).get(topic, {})
+    for partition in bookmarked_partitions:
+        bookmarked_partition = bookmarked_partitions[partition]
+        topic_partition = confluent_kafka.TopicPartition(topic,
+                                                         bookmarked_partition['partition'],
+                                                         bookmarked_partition['offset'])
+        offsets_to_commit.append(topic_partition)
+
+    consumer.commit(offsets=offsets_to_commit)
 
 
 # pylint: disable=too-many-locals,too-many-statements
-def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
-    """Read kafka topic continuously, insert into local store and flush singer
-    compatible messages in batches to STDOUT
-
-    Returns the timestamp of the last batch flush event"""
+def read_kafka_topic(consumer, kafka_config, state):
+    """Read kafka topic continuously and writing transformed singer messages to STDOUT"""
     topic = kafka_config['topic']
     primary_keys = kafka_config['primary_keys']
     max_runtime_ms = kafka_config['max_runtime_ms']
     commit_interval_ms = kafka_config['commit_interval_ms']
-    batch_size_rows = kafka_config['batch_size_rows']
-    local_store_cleanup_ts = time.time()
-    received_messages = 0
+    consumed_messages = 0
     last_consumed_ts = 0
     start_time = 0
     last_commit_time = 0
+    message = None
 
     # Send singer ACTIVATE message
     send_activate_version_message(state, topic)
-
-    # Start consuming kafka messages
-    last_flush_ts = float(singer.get_bookmark(state, topic, 'timestamp') or 0)
 
     while True:
         polled_message = consumer.poll(timeout=kafka_config['consumer_timeout_ms'] / 1000)
@@ -176,8 +258,11 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
             break
 
         message = polled_message
-        LOGGER.debug("%s:%s:%s: key=%s value=<HIDDEN>" % (message.topic(), message.partition(),
-                                                          message.offset(), message.key()))
+        LOGGER.debug("topic=%s partition=%s offset=%s timestamp=%s key=%s value=<HIDDEN>" % (message.topic(),
+                                                                                             message.partition(),
+                                                                                             message.offset(),
+                                                                                             message.timestamp(),
+                                                                                             message.key()))
 
         # Initialise the start time after the first message
         if not start_time:
@@ -187,47 +272,28 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
         if not last_commit_time:
             last_commit_time = time.time()
 
-        # Generate and insert singer message into local store
-        last_consumed_ts = consume_kafka_message(message, topic, primary_keys, local_store)
+        # Generate singer message
+        consume_kafka_message(message, topic, primary_keys)
 
-        # Commit periodically
-        if last_consumed_ts - last_commit_time > commit_interval_ms / 1000:
-            # Persist everything in the local store to disk and send commit message to kafka
-            local_store.persist_messages()
-            commit_kafka_consumer(consumer, message)
-            last_commit_time = time.time()
-
-        # Log message stats periodically
-        received_messages += 1
-        if received_messages % LOG_MESSAGES_PERIOD == 0:
-            LOGGER.info("%d messages received... Last consumed timestamp: %f Partition: %d Offset: %d",
-                        received_messages, last_consumed_ts, message.partition, message.offset)
-
-        # Every UPDATE_BOOKMARK_PERIOD, update the bookmark and send state message
-        if received_messages % UPDATE_BOOKMARK_PERIOD == 0:
-            state = update_bookmark(state, topic, local_store.last_persisted_ts)
-            LOGGER.debug("Updating bookmark and inserting to local store: %s", state)
-            local_store.insert(singer.format_message(singer.StateMessage(value=copy.deepcopy(state))))
-
-        # Flush local store periodically
-        if received_messages % batch_size_rows == 0:
-            LOGGER.debug('Sending %d unprocessed messages from local store...', batch_size_rows)
-            local_store.flush_after(last_flush_ts)
-            last_flush_ts = local_store.last_persisted_ts
+        # Update bookmark after every consumed message
+        state = update_bookmark(state, topic, message)
 
         now = time.time()
-        # Every CLEANUP_LOCAL_STORE_INTERVAL delete the processed items from the local store
-        if now >= (local_store_cleanup_ts + CLEANUP_LOCAL_STORE_INTERVAL):
-            # Read the state from disk, maybe a target connector updated it in the meantime
-            args = fn_get_args()
-            state = args.state or {}
+        # Commit periodically
+        if now - last_commit_time > commit_interval_ms / 1000:
+            commit_consumer_to_bookmarked_state(consumer, topic, state)
+            last_commit_time = time.time()
 
-            # Delete every processed item from the local store
-            LOGGER.debug(f'Deleting processed items from local store before state: %s', state)
-            local_store.delete_before_bookmark(state)
+        # Log message stats periodically every LOG_MESSAGES_PERIOD
+        consumed_messages += 1
+        if consumed_messages % LOG_MESSAGES_PERIOD == 0:
+            LOGGER.info("%d messages consumed... Last consumed timestamp: %f Partition: %d Offset: %d",
+                        consumed_messages, last_consumed_ts, message.partition(), message.offset())
 
-            # Update last cleanup timestamp
-            local_store_cleanup_ts = now
+        # Send state message periodically every SEND_STATE_PERIOD
+        if consumed_messages % SEND_STATE_PERIOD == 0:
+            LOGGER.debug("%d messages consumed... Sending latest state: %s", consumed_messages, state)
+            singer.write_message(singer.StateMessage(value=copy.deepcopy(state)))
 
         # Stop consuming more messages if max runtime exceeded
         max_runtime_s = max_runtime_ms / 1000
@@ -235,17 +301,14 @@ def read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args):
             LOGGER.info(f'Max runtime {max_runtime_s} seconds exceeded. Stop consuming more messages.')
             break
 
-    # Update singer bookmark at the last time to point it the the last processed offset
-    if last_consumed_ts:
-        state = update_bookmark(state, topic, last_consumed_ts)
-        local_store.insert(singer.format_message(singer.StateMessage(value=copy.deepcopy(state))))
-        local_store.persist_messages()
-        commit_kafka_consumer(consumer, message)
-
-    return last_flush_ts
+    # Update bookmark and send state at the last time
+    if message:
+        state = update_bookmark(state, topic, message)
+        singer.write_message(singer.StateMessage(value=copy.deepcopy(state)))
+        commit_consumer_to_bookmarked_state(consumer, topic, state)
 
 
-def do_sync(kafka_config, catalog, state, fn_get_args):
+def do_sync(kafka_config, catalog, state):
     """Set up kafka consumer, start reading the topic"""
     topic = kafka_config['topic']
 
@@ -253,31 +316,11 @@ def do_sync(kafka_config, catalog, state, fn_get_args):
     streams = catalog.get('streams', [])
     topic_pos = search_in_list_of_dict_by_key_value(streams, 'tap_stream_id', topic)
     if topic_pos != -1:
-        stream = streams[topic_pos]
-
-        # Init local store and delete every processed item
-        local_store = init_local_store(kafka_config)
-        LOGGER.debug(f'Deleting processed items from local store before state: %s', state)
-        local_store.delete_before_bookmark(state)
-
         # Send the initial schema message
-        send_schema_message(stream)
-
-        # Send messages from local store first
-        LOGGER.info('Sending %d unprocessed messages from local store...', local_store.count_all())
-        flush_ts = local_store.flush_after_bookmark(state)
-
-        # Send updated state message
-        state = update_bookmark(state, topic, flush_ts)
-        LOGGER.info("Sending updated bookmark to tap consumer: %s", state)
-        singer.write_message(singer.StateMessage(value=copy.deepcopy(state)))
+        send_schema_message(streams[topic_pos])
 
         # Start consuming new messages from kafka
-        consumer = init_kafka_consumer(kafka_config)
-        last_flush_ts = read_kafka_topic(consumer, local_store, kafka_config, state, fn_get_args)
-
-        # Flush remaining items in local store
-        LOGGER.info('Sending remaining messages from local store...')
-        local_store.flush_after(last_flush_ts)
+        consumer = init_kafka_consumer(kafka_config, state)
+        read_kafka_topic(consumer, kafka_config, state)
     else:
         raise Exception(f'Invalid catalog object. Cannot find {topic} in catalog')
