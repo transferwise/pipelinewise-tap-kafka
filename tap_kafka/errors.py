@@ -38,3 +38,10 @@ class InvalidAssignByKeyException(Exception):
     Exception to raise when consumer assigned by an invalid option
     """
     pass
+
+
+class ProtobufCompilerException(Exception):
+    """
+    Exception to raise when protobuf compiler fails
+    """
+    pass

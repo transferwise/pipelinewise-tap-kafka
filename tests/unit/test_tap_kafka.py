@@ -139,7 +139,10 @@ class TestSync(unittest.TestCase):
             'session_timeout_ms': tap_kafka.DEFAULT_SESSION_TIMEOUT_MS,
             'heartbeat_interval_ms': tap_kafka.DEFAULT_HEARTBEAT_INTERVAL_MS,
             'max_poll_records': tap_kafka.DEFAULT_MAX_POLL_RECORDS,
-            'max_poll_interval_ms': tap_kafka.DEFAULT_MAX_POLL_INTERVAL_MS
+            'max_poll_interval_ms': tap_kafka.DEFAULT_MAX_POLL_INTERVAL_MS,
+            'message_format': tap_kafka.DEFAULT_MESSAGE_FORMAT,
+            'proto_classes_dir': tap_kafka.DEFAULT_PROTO_CLASSES_DIR,
+            'proto_schema': tap_kafka.DEFAULT_PROTO_SCHEMA,
         })
 
     def test_generate_config_with_custom_parameters(self):
@@ -160,9 +163,9 @@ class TestSync(unittest.TestCase):
             'heartbeat_interval_ms': 3333,
             'max_poll_records': 4444,
             'max_poll_interval_ms': 5555,
-            'encoding': 'iso-8859-1',
-            'local_store_dir': '/tmp/local-store',
-            'local_store_batch_size_rows': 500
+            'message_format': 'protobuf',
+            'proto_classes_dir': '/tmp/proto-classes',
+            'proto_schema': 'proto-schema'
         }
         self.assertEqual(tap_kafka.generate_config(custom_config), {
             'topic': 'my_topic',
@@ -178,7 +181,10 @@ class TestSync(unittest.TestCase):
             'session_timeout_ms': 2222,
             'heartbeat_interval_ms': 3333,
             'max_poll_records': 4444,
-            'max_poll_interval_ms': 5555
+            'max_poll_interval_ms': 5555,
+            'message_format': 'protobuf',
+            'proto_classes_dir': '/tmp/proto-classes',
+            'proto_schema': 'proto-schema'
         })
 
     def test_validate_config(self):
@@ -193,24 +199,43 @@ class TestSync(unittest.TestCase):
             tap_kafka.validate_config({'topic': 'my_topic',
                                        'group_id': 'my_group_id',
                                        'bootstrap_servers': 'server1,server2,server3',
+                                       'message_format': 'json',
                                        'initial_start_time': 'invalid-iso8601-timestmap'})
 
         # Initial start time is a reserved word (latest)
         self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
                                                      'group_id': 'my_group_id',
                                                      'bootstrap_servers': 'server1,server2,server3',
+                                                     'message_format': 'json',
                                                      'initial_start_time': 'latest'}))
 
         # Initial start time is a reserved word (earliset)
         self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
                                                      'group_id': 'my_group_id',
                                                      'bootstrap_servers': 'server1,server2,server3',
+                                                     'message_format': 'json',
                                                      'initial_start_time': 'earliest'}))
 
         # Initial start time is a valid iso 8601 timestamp
         self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
                                                      'group_id': 'my_group_id',
                                                      'bootstrap_servers': 'server1,server2,server3',
+                                                     'message_format': 'json',
+                                                     'initial_start_time': '2021-11-01 12:00:00'}))
+
+        # Should raise an exception if message format is protobuf but proto schema is not provided
+        with self.assertRaises(InvalidConfigException):
+            tap_kafka.validate_config({'topic': 'my_topic',
+                                       'group_id': 'my_group_id',
+                                       'bootstrap_servers': 'server1,server2,server3',
+                                       'message_format': 'protobuf',
+                                       'initial_start_time': 'earliest'})
+
+        self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'group_id': 'my_group_id',
+                                                     'bootstrap_servers': 'server1,server2,server3',
+                                                     'message_format': 'protobuf',
+                                                     'proto_schema': 'proto-schema',
                                                      'initial_start_time': '2021-11-01 12:00:00'}))
 
     def test_generate_schema_with_no_pk(self):
