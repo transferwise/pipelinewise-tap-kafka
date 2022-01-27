@@ -2,6 +2,7 @@
 import time
 import copy
 import dpath.util
+import dateutil
 
 import singer
 import confluent_kafka
@@ -61,9 +62,36 @@ def update_bookmark(state, topic, message):
                                  })
 
 
+def initial_start_time_to_offset_reset(initial_start_time: str) -> str:
+    """Convert initial_start_time to corresponding kafka auto_offset_reset"""
+    return 'earliest' if initial_start_time == 'earliest' else 'latest'
+
+
+def iso_timestamp_to_epoch(iso_timestamp: str) -> int:
+    """Convert an ISO 8601 formatted string to epoch in milliseconds"""
+    try:
+        return int(dateutil.parser.parse(iso_timestamp).timestamp() * 1000)
+    except dateutil.parser.ParserError:
+        raise InvalidTimestampException(f'{iso_timestamp} is not a valid ISO formatted string.')
+
+
+def assign_consumer(consumer, topic: str, state: dict, initial_start_time: str) -> None:
+    """Assign consumer to the right position where we need to start consuming data from
+
+    * If state exists then assign each partition to the positions in the state
+    * If state is empty and the initial_start_time is a timestamp and not a reserved word
+      then assign each partition to the offsets at the provided timestamp.
+    * Otherwise do not assign"""
+    if state:
+        assign_consumer_to_bookmarked_state(consumer, topic, state)
+    elif initial_start_time is not None and initial_start_time not in ['latest', 'earliest']:
+        assign_consumer_to_timestamp(consumer, topic, initial_start_time)
+
+
 def init_kafka_consumer(kafka_config, state):
     LOGGER.info('Initialising Kafka Consumer...')
     topic = kafka_config['topic']
+    initial_start_time = kafka_config['initial_start_time']
     consumer = confluent_kafka.DeserializingConsumer({
         # Required parameters
         'bootstrap.servers': kafka_config['bootstrap_servers'],
@@ -76,13 +104,12 @@ def init_kafka_consumer(kafka_config, state):
 
         # Non-configurable parameters
         'enable.auto.commit': False,
-        'auto.offset.reset': 'latest',
+        'auto.offset.reset': initial_start_time_to_offset_reset(initial_start_time),
         'value.deserializer': JSONSimpleDeserializer(),
     })
-    consumer.subscribe([topic])
 
-    # Start consuming messages from the bookmarked positions
-    assign_consumer_to_bookmarked_state(consumer, topic, state)
+    consumer.subscribe([topic])
+    assign_consumer(consumer, topic, state, initial_start_time)
 
     return consumer
 
@@ -164,9 +191,25 @@ def bookmarked_partition_to_next_position(topic: str,
         raise InvalidBookmarkException(f"Invalid bookmark. One or more bookmark entries using invalid type(s).")
 
 
-def assign_consumer_to_bookmarked_state(consumer, topic: str, state, assign_by: str = 'timestamp'):
-    """Asssign consumer to bookmarked positions"""
-    bookmarked_partitions = state.get('bookmarks', {}).get(topic, {})
+def assign_consumer_to_timestamp(consumer, topic: str, timestamp: str, timeout: int = 30) -> None:
+    """Assign consumer topic of all partitions to given timestamp"""
+    # Get list of all partitions
+    cluster_md = consumer.list_topics(topic=topic, timeout=timeout)
+    topic_md = cluster_md.topics[topic]
+    partitions = topic_md.partitions
+
+    # Find the offset of partitions by timestamps
+    epoch = iso_timestamp_to_epoch(timestamp)
+    partitions_list = [confluent_kafka.TopicPartition(topic, p, epoch) for p in partitions]
+    partitions_to_assign = consumer.offsets_for_times(partitions_list)
+
+    # Assign to the correct position
+    consumer.assign(partitions_to_assign)
+
+
+def assign_consumer_to_bookmarked_state(consumer, topic: str, state, assign_by: str = 'timestamp') -> None:
+    """Assign consumer to bookmarked positions"""
+    bookmarked_partitions = state['bookmarks'][topic]
     partitions_to_assign = [bookmarked_partition_to_next_position(topic,
                                                                   bookmarked_partitions[p],
                                                                   assign_by=assign_by) for p in bookmarked_partitions]
@@ -245,7 +288,7 @@ def read_kafka_topic(consumer, kafka_config, state):
         consumed_messages += 1
         if consumed_messages % LOG_MESSAGES_PERIOD == 0:
             LOGGER.info("%d messages consumed... Last consumed timestamp: %f Partition: %d Offset: %d",
-                        consumed_messages, last_consumed_ts, message.partition, message.offset)
+                        consumed_messages, last_consumed_ts, message.partition(), message.offset())
 
         # Send state message periodically every SEND_STATE_PERIOD
         if consumed_messages % SEND_STATE_PERIOD == 0:

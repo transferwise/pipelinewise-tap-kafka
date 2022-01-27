@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='pipelinewise-tap-kafka',
-      version='4.0.1',
+      version='5.0.1',
       description='Singer.io tap for extracting data from Kafka topic - PipelineWise compatible',
       long_description=long_description,
       long_description_content_type='text/markdown',
@@ -18,7 +18,7 @@ setup(name='pipelinewise-tap-kafka',
       ],
       install_requires=[
           'pipelinewise-singer-python==2.*',
-          'dpath==2.0.1',
+          'dpath==2.0.5',
           'filelock==3.0.12',
           'confluent-kafka==1.7.0'
       ],
@@ -26,12 +26,12 @@ setup(name='pipelinewise-tap-kafka',
           'test': [
               'pytest==6.2.5',
               'pylint==2.4.2',
-              'pytest-cov==2.10.1'
+              'pytest-cov==3.0.0'
           ]
       },
       entry_points='''
           [console_scripts]
           tap-kafka=tap_kafka:main
       ''',
-      packages=['tap_kafka']
+      packages=['tap_kafka', 'tap_kafka.serialization']
 )

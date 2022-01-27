@@ -1,3 +1,16 @@
+5.0.1 (2022-01-26)
+------------------
+
+- Fixed an issue when `tap_kafka.serialization` module not included in the package
+
+5.0.0 (2022-01-24)
+------------------
+
+- Switching from `kafka-python` to `confluent-kafka-python`
+- Using faster `orjson` provided by `pipelinewise-singer-python-2.x`
+- Remove local store and bookmark consumed message in `STATE` messages
+- Add `initial_start_time` optional parameter
+
 4.0.1 (2021-08-13)
 ------------------
 *Fixes*:

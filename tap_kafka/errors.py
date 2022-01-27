@@ -1,3 +1,10 @@
+class InvalidConfigException(Exception):
+    """
+    Exception to raise when the config is not valid
+    """
+    pass
+
+
 class InvalidBookmarkException(Exception):
     """
     Exception to raise when bookmark is not valid

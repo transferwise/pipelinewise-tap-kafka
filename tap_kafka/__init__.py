@@ -9,7 +9,7 @@ from confluent_kafka import Consumer, KafkaException
 import tap_kafka.sync as sync
 import tap_kafka.common as common
 
-from .errors import DiscoveryException
+from .errors import InvalidTimestampException, InvalidConfigException, DiscoveryException
 
 LOGGER = singer.get_logger('tap_kafka')
 
@@ -19,6 +19,7 @@ REQUIRED_CONFIG_KEYS = [
     'topic'
 ]
 
+DEFAULT_INITIAL_START_TIME = 'latest'
 DEFAULT_MAX_RUNTIME_MS = 300000
 DEFAULT_COMMIT_INTERVAL_MS = 5000
 DEFAULT_CONSUMER_TIMEOUT_MS = 10000
@@ -68,8 +69,23 @@ def get_args():
     return utils.parse_args(REQUIRED_CONFIG_KEYS)
 
 
+def validate_config(config) -> None:
+    """Validate configuration"""
+    for required_key in REQUIRED_CONFIG_KEYS:
+        if required_key not in config.keys():
+            raise InvalidConfigException(f'Invalid config. {required_key} not found in config.')
+
+    initial_start_time = config.get('initial_start_time')
+    if initial_start_time and initial_start_time not in ['latest', 'earliest']:
+        try:
+            sync.iso_timestamp_to_epoch(config.get('initial_start_time'))
+        except InvalidTimestampException:
+            raise InvalidConfigException("Invalid config. initial_start_time needs to be one of 'earliest', "
+                                         "'latest' or a valid ISO-8601 formatted timestamp string")
+
+
 def generate_config(args_config):
-    return {
+    config = {
         # Add required parameters
         'topic': args_config['topic'],
         'group_id': args_config['group_id'],
@@ -77,6 +93,7 @@ def generate_config(args_config):
 
         # Add optional parameters with defaults
         'primary_keys': args_config.get('primary_keys', {}),
+        'initial_start_time': args_config.get('initial_start_time', DEFAULT_INITIAL_START_TIME),
         'max_runtime_ms': args_config.get('max_runtime_ms', DEFAULT_MAX_RUNTIME_MS),
         'commit_interval_ms': args_config.get('commit_interval_ms', DEFAULT_COMMIT_INTERVAL_MS),
         'consumer_timeout_ms': args_config.get('consumer_timeout_ms', DEFAULT_CONSUMER_TIMEOUT_MS),
@@ -85,6 +102,9 @@ def generate_config(args_config):
         'max_poll_records': args_config.get('max_poll_records', DEFAULT_MAX_POLL_RECORDS),
         'max_poll_interval_ms': args_config.get('max_poll_interval_ms', DEFAULT_MAX_POLL_INTERVAL_MS)
     }
+
+    validate_config(config)
+    return config
 
 
 def main_impl():

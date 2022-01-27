@@ -1,5 +1,6 @@
 import unittest
 import time
+from datetime import datetime
 import singer
 
 import tap_kafka
@@ -44,7 +45,7 @@ class TestKafkaConsumer(unittest.TestCase):
         tap_kafka.dump_catalog = lambda c: catalog_streams.extend(c)
         tap_kafka.do_discovery(tap_kafka_config)
 
-        assert catalog_streams == [
+        self.assertEqual(catalog_streams, [
             {
                 'tap_stream_id': catalog_streams[0]['tap_stream_id'],
                 'metadata': [
@@ -60,7 +61,7 @@ class TestKafkaConsumer(unittest.TestCase):
                     }
                 }
             }
-        ]
+        ])
 
     def test_tap_kafka_discovery_failure(self):
         kafka_config = test_utils.get_kafka_config()
@@ -105,8 +106,8 @@ class TestKafkaConsumer(unittest.TestCase):
         singer.write_message = lambda m: singer_messages.append(m.asdict())
 
         # Should not receive any RECORD and STATE messages because we start consuming from latest
-        sync.do_sync(tap_kafka_config, catalog, state={})
-        assert singer_messages == [
+        sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,
@@ -127,7 +128,7 @@ class TestKafkaConsumer(unittest.TestCase):
                 'stream': topic,
                 'version': singer_messages[1]['version']
             }
-        ]
+        ])
 
         # Position to the time when the test started
         singer_messages = []
@@ -137,8 +138,8 @@ class TestKafkaConsumer(unittest.TestCase):
                                         'offset': 0,
                                         'timestamp': start_time}}}})
 
-        assert len(singer_messages) == 8
-        assert singer_messages == [
+        self.assertEqual(len(singer_messages), 8)
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,
@@ -227,7 +228,7 @@ class TestKafkaConsumer(unittest.TestCase):
                     }
                 }
             }
-        ]
+        ])
 
         # Save state with bookmarks
         state = singer_messages[7]['value']
@@ -250,8 +251,8 @@ class TestKafkaConsumer(unittest.TestCase):
         singer_messages = []
         sync.do_sync(tap_kafka_config, catalog, state=state)
 
-        assert len(singer_messages) == 6
-        assert singer_messages == [
+        self.assertEqual(len(singer_messages), 6)
+        self.assertEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,
@@ -316,4 +317,210 @@ class TestKafkaConsumer(unittest.TestCase):
                     }
                 }
             }
-        ]
+        ])
+
+    def test_tap_kafka_consumer_initial_start_time_earliest(self):
+        kafka_config = test_utils.get_kafka_config()
+
+        # Produce test messages
+        topic = test_utils.create_topic(kafka_config['bootstrap_servers'], 'test-topic-earliest', num_partitions=1)
+        test_utils.produce_messages(
+            kafka_config['bootstrap_servers'],
+            topic,
+            test_utils.get_file_lines('json_messages_to_produce.json')
+        )
+
+        # Consume test messages
+        tap_kafka_config = tap_kafka.generate_config({
+            'bootstrap_servers': kafka_config['bootstrap_servers'],
+            'topic': topic,
+            'group_id': test_utils.generate_unique_consumer_group(),
+            'initial_start_time': 'earliest'
+        })
+        catalog = {'streams': tap_kafka.common.generate_catalog(tap_kafka_config)}
+
+        # Mock items
+        singer_messages = []
+        singer.write_message = lambda m: singer_messages.append(m.asdict())
+
+        # Should receive all RECORD and STATE messages because we start consuming from the earliest
+        sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
+        self.assertEqual(len(singer_messages), 8)
+
+        # Second run should not receive any RECORD messages even if no state provided:
+        # Last message should be committed, no new one produced so nothing new expected to receive
+        singer_messages = []
+        sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
+        self.assertEqual(len(singer_messages), 2)
+        self.assertEqual(singer_messages, [
+            {
+                'type': 'SCHEMA',
+                'stream': topic,
+                'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'message_partition': {'type': ['integer', 'null']},
+                        'message_offset': {'type': ['integer', 'null']},
+                        'message_timestamp': {'type': ['integer', 'string', 'null']},
+                        'message': {'type': ['object', 'array', 'string', 'null']}
+                    }
+                },
+                'key_properties': []
+            },
+            {
+                'type': 'ACTIVATE_VERSION',
+                'stream': topic,
+                'version': singer_messages[1]['version']
+            }
+        ])
+
+    def test_tap_kafka_consumer_initial_start_time_latest(self):
+        kafka_config = test_utils.get_kafka_config()
+
+        # Produce test messages
+        topic = test_utils.create_topic(kafka_config['bootstrap_servers'], 'test-topic-latest', num_partitions=1)
+        test_utils.produce_messages(
+            kafka_config['bootstrap_servers'],
+            topic,
+            test_utils.get_file_lines('json_messages_to_produce.json')
+        )
+
+        # Consume test messages
+        tap_kafka_config = tap_kafka.generate_config({
+            'bootstrap_servers': kafka_config['bootstrap_servers'],
+            'topic': topic,
+            'group_id': test_utils.generate_unique_consumer_group(),
+            'initial_start_time': 'latest'
+        })
+        catalog = {'streams': tap_kafka.common.generate_catalog(tap_kafka_config)}
+
+        # Mock items
+        singer_messages = []
+        singer.write_message = lambda m: singer_messages.append(m.asdict())
+
+        # Should not receive any RECORD and STATE messages because we start consuming from latest
+        sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
+        self.assertEqual(singer_messages, [
+            {
+                'type': 'SCHEMA',
+                'stream': topic,
+                'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'message_partition': {'type': ['integer', 'null']},
+                        'message_offset': {'type': ['integer', 'null']},
+                        'message_timestamp': {'type': ['integer', 'string', 'null']},
+                        'message': {'type': ['object', 'array', 'string', 'null']}
+                    }
+                },
+                'key_properties': []
+            },
+            {
+                'type': 'ACTIVATE_VERSION',
+                'stream': topic,
+                'version': singer_messages[1]['version']
+            }
+        ])
+
+    def test_tap_kafka_consumer_initial_start_time_timestamp(self):
+        kafka_config = test_utils.get_kafka_config()
+
+        # Produce test messages
+        topic = test_utils.create_topic(kafka_config['bootstrap_servers'], 'test-topic-init-start-ts', num_partitions=1)
+        test_utils.produce_messages(
+            kafka_config['bootstrap_servers'],
+            topic,
+            test_utils.get_file_lines('json_messages_to_produce.json')
+        )
+
+        # Wait a couple of seconds before producing some more test messages
+        time.sleep(2)
+
+        # We will start consuming message starting from this moment
+        initial_start_time = datetime.now().isoformat()
+
+        # Produce some more test messages
+        test_utils.produce_messages(
+            kafka_config['bootstrap_servers'],
+            topic,
+            test_utils.get_file_lines('json_messages_to_produce_2.json')
+        )
+
+        # Consume test messages from a given timestamp
+        tap_kafka_config = tap_kafka.generate_config({
+            'bootstrap_servers': kafka_config['bootstrap_servers'],
+            'topic': topic,
+            'group_id': test_utils.generate_unique_consumer_group(),
+            'initial_start_time': initial_start_time
+        })
+        catalog = {'streams': tap_kafka.common.generate_catalog(tap_kafka_config)}
+
+        # Mock items
+        singer_messages = []
+        singer.write_message = lambda m: singer_messages.append(m.asdict())
+
+        # Should receive RECORD and STATE messages only from json_messages_to_produce_2.json
+        sync.do_sync(tap_kafka_config, catalog, state={})
+        self.assertEqual(len(singer_messages), 6)
+        self.assertEqual(singer_messages, [
+            {
+                'type': 'SCHEMA',
+                'stream': topic,
+                'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'message_partition': {'type': ['integer', 'null']},
+                        'message_offset': {'type': ['integer', 'null']},
+                        'message_timestamp': {'type': ['integer', 'string', 'null']},
+                        'message': {'type': ['object', 'array', 'string', 'null']}
+                    }
+                },
+                'key_properties': []
+            },
+            {
+                'type': 'ACTIVATE_VERSION',
+                'stream': topic,
+                'version': singer_messages[1]['version']
+            },
+            {
+                'type': 'RECORD',
+                'stream': topic,
+                'record': {
+                    'message_partition': 0,
+                    'message_offset': 5,
+                    'message_timestamp': singer_messages[2]['record']['message_timestamp'],
+                    'message': {'id': 3, 'value': 'updated id 3'}
+                },
+                'time_extracted': singer_messages[2]['time_extracted']
+            },
+            {
+                'type': 'RECORD',
+                'stream': topic,
+                'record': {
+                    'message_partition': 0,
+                    'message_offset': 6,
+                    'message_timestamp': singer_messages[3]['record']['message_timestamp'],
+                    'message': {'id': 4, 'value': 'initial id 4'}
+                },
+                'time_extracted': singer_messages[3]['time_extracted']
+            },
+            {
+                'type': 'RECORD',
+                'stream': topic,
+                'record': {
+                    'message_partition': 0,
+                    'message_offset': 7,
+                    'message_timestamp': singer_messages[4]['record']['message_timestamp'],
+                    'message': {'id': 4, 'value': 'updated id 4'}
+                },
+                'time_extracted': singer_messages[4]['time_extracted']
+            },
+            {
+                'type': 'STATE',
+                'value': {
+                    'bookmarks': {
+                        topic: singer_messages[5]['value']['bookmarks'][topic]
+                    }
+                }
+            }
+        ])
