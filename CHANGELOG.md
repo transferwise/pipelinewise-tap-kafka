@@ -18,10 +18,11 @@
 
 5.0.0 (2022-01-24)
 ------------------
-BREAKING RELEASE:
-* Upgrading from 4.x to 5.x: Please remove the existing `state.json` created by tap-kafka 4.x.
+**BREAKING CHANGES**
+Upgrading from 4.x to 5.x: Please remove the existing `state.json` created by tap-kafka 4.x.
 5.x will continue consuming messages from the last consumed offset but will generate `state.json` in a new format.
 
+**CHANGELOG**
 - Switching from `kafka-python` to `confluent-kafka-python`
 - Using faster `orjson` provided by `pipelinewise-singer-python-2.x`
 - Remove local store and bookmark consumed message in `STATE` messages
