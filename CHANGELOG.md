@@ -1,6 +1,7 @@
 5.1.0 (2022-01-27)
 ------------------
-- Add protobuf support
+*Features*:
+  - Add protobuf support
 
 *Fixes*:
   - Fixed an issue when log messages raised exceptions
