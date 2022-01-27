@@ -1,12 +1,13 @@
 VENV_DIR = ./venv
 ZOOKEEPER_CLIENT_PORT = 2181
 KAFKA_PORT = 29092
+SCHEMA_REGISTRY_PORT = 8081
 
 .run_pytest_unit:
 	@$(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=78 tests/unit -v
 
 .run_pytest_integration:
-	@TAP_KAFKA_BOOTSTRAP_SERVERS=localhost:${KAFKA_PORT} $(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=81 tests/integration -v
+	@TAP_KAFKA_BOOTSTRAP_SERVERS=localhost:${KAFKA_PORT} $(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=79 tests/integration -v
 
 virtual_env:
 	@echo "Making Virtual Environment in $(VENV_DIR)..."
@@ -18,9 +19,10 @@ virtual_env:
 
 start_containers: clean_containers
 	@docker-compose up -d
-	@echo "Waiting for Kafka and Zookeeper containers..."
+	@echo "Waiting for containers..."
 	@docker run --rm --network 'pipelinewise_tap_kafka_network' busybox /bin/sh -c "until nc -z zookeeper ${ZOOKEEPER_CLIENT_PORT}; do sleep 1; echo 'Waiting for Zookeeper to come up...'; done"
 	@docker run --rm --network 'pipelinewise_tap_kafka_network' busybox /bin/sh -c "until nc -z kafka ${KAFKA_PORT}; do sleep 1; echo 'Waiting for Kafka to come up...'; done"
+	@docker run --rm --network 'pipelinewise_tap_kafka_network' busybox /bin/sh -c "until nc -z schema_registry ${SCHEMA_REGISTRY_PORT}; do sleep 1; echo 'Waiting for Schema Registry to come up...'; done"
 
 clean_containers:
 	@echo "Killing and removing containers..."

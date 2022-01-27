@@ -13,7 +13,7 @@ __pycache__/
 *~
 dist/
 test_dir/
-tap-kafka-local-store/
+tap-kafka-proto-classes/
 .coverage
 
 # Singer JSON files
