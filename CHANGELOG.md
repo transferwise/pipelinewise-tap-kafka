@@ -1,3 +1,16 @@
+5.1.0 (2022-01-27)
+------------------
+- Add protobuf support
+
+*Fixes*:
+  - Fixed an issue when log messages raised exceptions
+
+*Requirement updates*:
+  - Bump `dpath` from `2.0.1` to `2.0.5`
+  - Bump `pytest-cov` from `2.10.1` to `3.0.0`
+  - Bump `pylint` from `2.4.2` to `2.12.2`
+  - Remove `filelock` requirement
+
 5.0.1 (2022-01-26)
 ------------------
 
@@ -5,6 +18,9 @@
 
 5.0.0 (2022-01-24)
 ------------------
+BREAKING RELEASE:
+* Upgrading from 4.x to 5.x: Please remove the existing `state.json` created by tap-kafka 4.x.
+5.x will continue consuming messages from the last consumed offset but will generate `state.json` in a new format.
 
 - Switching from `kafka-python` to `confluent-kafka-python`
 - Using faster `orjson` provided by `pipelinewise-singer-python-2.x`
