@@ -13,6 +13,7 @@ from google.protobuf.json_format import MessageToJson
 from tap_kafka.errors import ProtobufCompilerException
 
 
+# pylint: disable=R0903
 class ProtobufDictDeserializer(ProtobufDeserializer):
     """
     Deserializes a Python dict object from protobuf
@@ -24,6 +25,7 @@ class ProtobufDictDeserializer(ProtobufDeserializer):
                              including_default_value_fields=True)
 
 
+# pylint: disable=R0914
 def proto_to_message_type(schema: str, protobuf_classes_dir: str):
     """Compile a protobuf schema to python class and load it dynamically"""
     mod_name = f"proto_message"
@@ -60,3 +62,5 @@ def proto_to_message_type(schema: str, protobuf_classes_dir: str):
     for name, obj in inspect.getmembers(mod):
         if inspect.isclass(obj) and obj.__module__ == module_name:
             return obj
+
+    return None

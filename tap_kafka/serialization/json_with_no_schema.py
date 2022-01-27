@@ -5,6 +5,7 @@ from confluent_kafka.serialization import Serializer
 from confluent_kafka.serialization import SerializationError
 
 
+# pylint: disable=R0903
 class JSONSimpleSerializer(Serializer):
     """
     Serializes a Python object to JSON formatted string.
@@ -14,11 +15,12 @@ class JSONSimpleSerializer(Serializer):
             return None
 
         try:
-            return orjson.dumps(obj)
-        except orjson.JSONDecodeError as e:
+            return orjson.dumps(obj)  # pylint: disable=E1101
+        except orjson.JSONDecodeError as e:  # pylint: disable=E1101
             raise SerializationError(str(e))
 
 
+# pylint: disable=R0903
 class JSONSimpleDeserializer(Deserializer):
     """
     Deserializes a Python object from JSON formatted bytes.
@@ -39,6 +41,6 @@ class JSONSimpleDeserializer(Deserializer):
             return None
 
         try:
-            return orjson.loads(value)
-        except orjson.JSONDecodeError as e:
+            return orjson.loads(value)  # pylint: disable=E1101
+        except orjson.JSONDecodeError as e: # pylint: disable=E1101
             raise SerializationError(str(e))
