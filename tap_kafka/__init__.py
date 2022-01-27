@@ -7,8 +7,8 @@ import singer
 from singer import utils
 from confluent_kafka import Consumer, KafkaException
 
-import tap_kafka.sync as sync
-import tap_kafka.common as common
+from tap_kafka import sync
+from tap_kafka import common
 
 from .errors import InvalidTimestampException, InvalidConfigException, DiscoveryException
 
