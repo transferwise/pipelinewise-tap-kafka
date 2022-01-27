@@ -19,6 +19,7 @@
 5.0.0 (2022-01-24)
 ------------------
 **BREAKING CHANGES**
+
 Upgrading from 4.x to 5.x: Please remove the existing `state.json` created by tap-kafka 4.x.
 5.x will continue consuming messages from the last consumed offset but will generate `state.json` in a new format.
 
