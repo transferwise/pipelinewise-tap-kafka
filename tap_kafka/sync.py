@@ -288,7 +288,7 @@ def read_kafka_topic(consumer, kafka_config, state):
         consumed_messages += 1
         if consumed_messages % LOG_MESSAGES_PERIOD == 0:
             LOGGER.info("%d messages consumed... Last consumed timestamp: %f Partition: %d Offset: %d",
-                        consumed_messages, last_consumed_ts, message.partition, message.offset)
+                        consumed_messages, last_consumed_ts, message.partition(), message.offset())
 
         # Send state message periodically every SEND_STATE_PERIOD
         if consumed_messages % SEND_STATE_PERIOD == 0:
