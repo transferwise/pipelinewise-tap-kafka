@@ -173,15 +173,20 @@ def kafka_message_to_singer_record(message, primary_keys):
         "message_timestamp": get_timestamp_from_timestamp_tuple(message.timestamp()),
     }
 
-    # Add primary keys to the record message
-    for key in primary_keys:
-        pk_selector = primary_keys[key]
-        try:
-            record[key] = dpath.util.get(message.value(), pk_selector)
-        # Do not fail if PK not found in the message.
-        # Continue without adding the extracted PK to the message
-        except KeyError:
-            pass
+    # Add PKs to the record. In case custom PKs are defined, use them
+    if primary_keys:
+        for key in primary_keys:
+            pk_selector = primary_keys[key]
+            try:
+                record[key] = dpath.util.get(message.value(), pk_selector)
+            # Do not fail if PK not found in the message.
+            # Continue without adding the extracted PK to the message
+            except KeyError:
+                pass
+    elif message.key():  # In absence of custom PKs, try to use the message one
+        record['message_key'] = message.key()
+    else:  # If none are present, default to the "canonical PK" of the kafka message
+        record['message_key'] = f"{message.partition()}_{message.offset()}"
 
     return record
 

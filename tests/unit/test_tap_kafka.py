@@ -281,19 +281,20 @@ class TestSync(unittest.TestCase):
             })
 
     def test_generate_catalog_with_no_pk(self):
-        """table-key-properties should be empty list when no PK defined"""
+        """table-key-properties should not be empty when no custom PK defined"""
         self.assertEqual(common.generate_catalog({"topic": "dummy_topic"}),
                [
                    {
                        "metadata": [
                            {
                                "breadcrumb": (),
-                                "metadata": {"table-key-properties": []}
+                                "metadata": {"table-key-properties": ['message_key']}
                            }
                        ],
                        "schema": {
                            "type": "object",
                            "properties": {
+                                'message_key': {'type': ['string', 'null']},
                                 "message_timestamp": {"type": ["integer", "string", "null"]},
                                 "message_offset": {"type": ["integer", "null"]},
                                 "message_partition": {"type": ["integer", "null"]},
@@ -627,7 +628,8 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1001', 'type': 'TYPE_1', 'profileId': 1234}},
                     'message_partition': 1,
                     'message_offset': 1,
-                    'message_timestamp': 1575895711187
+                    'message_timestamp': 1575895711187,
+                    'message_key': '1_1'
                 },
                 'time_extracted': singer_messages[1]['time_extracted']
             },
@@ -638,7 +640,8 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1002', 'type': 'TYPE_2', 'profileId': 1234}},
                     'message_partition': 2,
                     'message_offset': 2,
-                    'message_timestamp': 1575895711188
+                    'message_timestamp': 1575895711188,
+                    'message_key': '2_2'
                 },
                 'time_extracted': singer_messages[2]['time_extracted']
             },
@@ -649,7 +652,8 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1003', 'type': 'TYPE_3', 'profileId': 1234}},
                     'message_partition': 2,
                     'message_offset': 3,
-                    'message_timestamp': 1575895711189
+                    'message_timestamp': 1575895711189,
+                    'message_key': '2_3'
                 },
                 'time_extracted': singer_messages[3]['time_extracted']
             },
@@ -697,7 +701,8 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1001', 'type': 'TYPE_1', 'profileId': 1234}},
                     'message_partition': 1,
                     'message_offset': 1,
-                    'message_timestamp': 1575895711187
+                    'message_timestamp': 1575895711187,
+                    'message_key': '1_1'
                 },
                 'time_extracted': consumed_messages[1]['time_extracted']
             },
@@ -708,7 +713,8 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1002', 'type': 'TYPE_2', 'profileId': 1234}},
                     'message_partition': 2,
                     'message_offset': 2,
-                    'message_timestamp': 1575895711188
+                    'message_timestamp': 1575895711188,
+                    'message_key': '2_2'
                 },
                 'time_extracted': consumed_messages[2]['time_extracted']
             },
@@ -719,7 +725,8 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1003', 'type': 'TYPE_3', 'profileId': 1234}},
                     'message_partition': 2,
                     'message_offset': 3,
-                    'message_timestamp': 1575895711189
+                    'message_timestamp': 1575895711189,
+                    'message_key': '2_3'
                 },
                 'time_extracted': consumed_messages[3]['time_extracted']
             },
@@ -745,7 +752,7 @@ class TestSync(unittest.TestCase):
         """Validate if kafka messages converted to singer messages correctly"""
         topic = 'test-topic'
 
-        # Converting without primary key
+        # Converting without custom primary or message key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
@@ -756,10 +763,28 @@ class TestSync(unittest.TestCase):
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'message_timestamp': 123456789,
             'message_offset': 1234,
-            'message_partition': 0
+            'message_partition': 0,
+            'message_key': '0_1234'
         })
 
-        # Converting with primary key
+        # Converting with message key
+        message = KafkaConsumerMessageMock(topic=topic,
+                                           value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           offset=1234,
+                                           partition=0,
+                                           key='1')
+
+        primary_keys = {}
+        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys), {
+            'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+            'message_timestamp': 123456789,
+            'message_offset': 1234,
+            'message_partition': 0,
+            'message_key': '1'
+        })
+
+        # Converting with custom primary key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
@@ -774,7 +799,7 @@ class TestSync(unittest.TestCase):
             'message_partition': 0
         })
 
-        # Converting with nested and multiple primary keys
+        # Converting with nested and multiple custom primary keys
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
@@ -790,7 +815,7 @@ class TestSync(unittest.TestCase):
             'message_partition': 0
         })
 
-        # Converting with not existing primary keys
+        # Converting with not existing custom primary keys
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),

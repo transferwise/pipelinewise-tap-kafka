@@ -34,6 +34,8 @@ def generate_catalog(kafka_config) -> list:
         pk_config = kafka_config.get('primary_keys', [])
         if isinstance(pk_config, object):
             pks = list(pk_config.keys())
+    else:  # Add message_key as a default if no custom PKs specified
+        pks = ['message_key']
 
     # Add primary keys to schema
     mdata = {}
