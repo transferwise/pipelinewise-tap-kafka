@@ -628,8 +628,7 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1001', 'type': 'TYPE_1', 'profileId': 1234}},
                     'message_partition': 1,
                     'message_offset': 1,
-                    'message_timestamp': 1575895711187,
-                    'message_key': '1_1'
+                    'message_timestamp': 1575895711187
                 },
                 'time_extracted': singer_messages[1]['time_extracted']
             },
@@ -640,8 +639,7 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1002', 'type': 'TYPE_2', 'profileId': 1234}},
                     'message_partition': 2,
                     'message_offset': 2,
-                    'message_timestamp': 1575895711188,
-                    'message_key': '2_2'
+                    'message_timestamp': 1575895711188
                 },
                 'time_extracted': singer_messages[2]['time_extracted']
             },
@@ -652,8 +650,7 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1003', 'type': 'TYPE_3', 'profileId': 1234}},
                     'message_partition': 2,
                     'message_offset': 3,
-                    'message_timestamp': 1575895711189,
-                    'message_key': '2_3'
+                    'message_timestamp': 1575895711189
                 },
                 'time_extracted': singer_messages[3]['time_extracted']
             },
@@ -701,8 +698,7 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1001', 'type': 'TYPE_1', 'profileId': 1234}},
                     'message_partition': 1,
                     'message_offset': 1,
-                    'message_timestamp': 1575895711187,
-                    'message_key': '1_1'
+                    'message_timestamp': 1575895711187
                 },
                 'time_extracted': consumed_messages[1]['time_extracted']
             },
@@ -713,8 +709,7 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1002', 'type': 'TYPE_2', 'profileId': 1234}},
                     'message_partition': 2,
                     'message_offset': 2,
-                    'message_timestamp': 1575895711188,
-                    'message_key': '2_2'
+                    'message_timestamp': 1575895711188
                 },
                 'time_extracted': consumed_messages[2]['time_extracted']
             },
@@ -725,8 +720,7 @@ class TestSync(unittest.TestCase):
                     'message': {'result': 'SUCCESS', 'details': {'id': '1003', 'type': 'TYPE_3', 'profileId': 1234}},
                     'message_partition': 2,
                     'message_offset': 3,
-                    'message_timestamp': 1575895711189,
-                    'message_key': '2_3'
+                    'message_timestamp': 1575895711189
                 },
                 'time_extracted': consumed_messages[3]['time_extracted']
             },
@@ -763,8 +757,7 @@ class TestSync(unittest.TestCase):
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'message_timestamp': 123456789,
             'message_offset': 1234,
-            'message_partition': 0,
-            'message_key': '0_1234'
+            'message_partition': 0
         })
 
         # Converting with message key
