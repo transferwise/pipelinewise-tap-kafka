@@ -184,9 +184,8 @@ def kafka_message_to_singer_record(message, primary_keys):
             except KeyError:
                 pass
     elif message.key():  # In absence of custom PKs, try to use the message one
-        record['message_key'] = message.key()
-    else:  # If none are present, default to the "canonical PK" of the kafka message
-        record['message_key'] = f"{message.partition()}_{message.offset()}"
+        # message.key() can return string or bytes, so extra check to accommodate with either
+        record['message_key'] = message.key() if isinstance(message.key(), str) else message.key().decode('utf-8')
 
     return record
 
