@@ -50,11 +50,12 @@ class TestKafkaConsumer(unittest.TestCase):
             {
                 'tap_stream_id': catalog_streams[0]['tap_stream_id'],
                 'metadata': [
-                    {'breadcrumb': (), 'metadata': {'table-key-properties': []}}
+                    {'breadcrumb': (), 'metadata': {'table-key-properties': ['message_key']}}
                 ],
                 'schema': {
                     'type': 'object',
                     'properties': {
+                        'message_key': {'type': ['string', 'null']},
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
@@ -366,13 +367,14 @@ class TestKafkaConsumer(unittest.TestCase):
                 'schema': {
                     'type': 'object',
                     'properties': {
+                        'message_key': {'type': ['string', 'null']},
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
                         'message': {'type': ['object', 'array', 'string', 'null']}
                     }
                 },
-                'key_properties': []
+                'key_properties': ['message_key']
             },
             {
                 'type': 'ACTIVATE_VERSION',
@@ -416,13 +418,14 @@ class TestKafkaConsumer(unittest.TestCase):
                 'schema': {
                     'type': 'object',
                     'properties': {
+                        'message_key': {'type': ['string', 'null']},
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
                         'message': {'type': ['object', 'array', 'string', 'null']}
                     }
                 },
-                'key_properties': []
+                'key_properties': ['message_key']
             },
             {
                 'type': 'ACTIVATE_VERSION',
@@ -482,13 +485,14 @@ class TestKafkaConsumer(unittest.TestCase):
                 'schema': {
                     'type': 'object',
                     'properties': {
+                        'message_key': {'type': ['string', 'null']},
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
                         'message': {'type': ['object', 'array', 'string', 'null']}
                     }
                 },
-                'key_properties': []
+                'key_properties': ['message_key']
             },
             {
                 'type': 'ACTIVATE_VERSION',
@@ -502,7 +506,8 @@ class TestKafkaConsumer(unittest.TestCase):
                     'message_partition': 0,
                     'message_offset': 5,
                     'message_timestamp': singer_messages[2]['record']['message_timestamp'],
-                    'message': {'id': 3, 'value': 'updated id 3'}
+                    'message': {'id': 3, 'value': 'updated id 3'},
+                    'message_key': '3'
                 },
                 'time_extracted': singer_messages[2]['time_extracted']
             },
@@ -513,7 +518,8 @@ class TestKafkaConsumer(unittest.TestCase):
                     'message_partition': 0,
                     'message_offset': 6,
                     'message_timestamp': singer_messages[3]['record']['message_timestamp'],
-                    'message': {'id': 4, 'value': 'initial id 4'}
+                    'message': {'id': 4, 'value': 'initial id 4'},
+                    'message_key': '4'
                 },
                 'time_extracted': singer_messages[3]['time_extracted']
             },
@@ -524,7 +530,8 @@ class TestKafkaConsumer(unittest.TestCase):
                     'message_partition': 0,
                     'message_offset': 7,
                     'message_timestamp': singer_messages[4]['record']['message_timestamp'],
-                    'message': {'id': 4, 'value': 'updated id 4'}
+                    'message': {'id': 4, 'value': 'updated id 4'},
+                    'message_key': '4'
                 },
                 'time_extracted': singer_messages[4]['time_extracted']
             },
