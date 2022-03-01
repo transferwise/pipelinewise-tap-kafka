@@ -92,10 +92,11 @@ class TestProtobuf(unittest.TestCase):
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
-                        'message': {'type': ['object', 'array', 'string', 'null']}
+                        'message': {'type': ['object', 'array', 'string', 'null']},
+                        'message_key': {'type': ['string', 'null']}
                     }
                 },
-                'key_properties': []
+                'key_properties': ['message_key']
             },
             {
                 'type': 'ACTIVATE_VERSION',
@@ -114,6 +115,7 @@ class TestProtobuf(unittest.TestCase):
                         'favourite_number': '3',
                         'favourite_color': 'Blue'
                     },
+                    'message_key': '1'
                 },
                 'time_extracted': singer_messages[2]['time_extracted']
             },
@@ -129,6 +131,7 @@ class TestProtobuf(unittest.TestCase):
                         'favourite_number': '8',
                         'favourite_color': 'Yellow'
                     },
+                    'message_key': '2'
                 },
                 'time_extracted': singer_messages[3]['time_extracted']
             },
@@ -144,6 +147,7 @@ class TestProtobuf(unittest.TestCase):
                         'favourite_number': '12',
                         'favourite_color': ''
                     },
+                    'message_key': '3'
                 },
                 'time_extracted': singer_messages[4]['time_extracted']
             },
