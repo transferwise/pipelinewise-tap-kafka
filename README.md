@@ -58,7 +58,7 @@ Full list of options in `config.json`:
 | bootstrap_servers                 | String  | Yes        | `host[:port]` string (or list of comma separated `host[:port]` strings) that the consumer should contact to bootstrap initial cluster metadata.                                                                                                     |
 | group_id                          | String  | Yes        | The name of the consumer group to join for dynamic partition assignment (if enabled), and to use for fetching and committing offsets.                                                                                                               |
 | topic                             | String  | Yes        | Name of kafka topics to subscribe to                                                                                                                                                                                                                |
-| primary_keys                      | Object  |            | Optionally you can define primary key for the consumed messages. It requires a column name and `/slashed/paths` ala xpath selector to extract the value from the kafka messages. The extracted column will be added to every output singer message. |
+| primary_keys                      | Object  |            | Optionally you can define primary key for the consumed messages. It requires a column name and `/slashed/paths` ala xpath selector to extract the value from the kafka messages. The extracted column will be added to every output singer message. Note: without defining custom PK the message key will be used as default if it's present in the message.|
 | initial_start_time                | String  |            | (Default: latest) Start time reference of the message consumption if no bookmarked position in `state.sjon`. One of: `latest`, `earliest` or an ISO-8601 formatted timestamp string.                                                                |
 | max_runtime_ms                    | Integer |            | (Default: 300000) The maximum time for the tap to collect new messages from Kafka topic. If this time exceeds it will flush the batch and close kafka connection.                                                                                   |
 | commit_interval_ms                | Integer |            | (Default: 5000) Number of milliseconds between two commits. This is different than the kafka auto commit feature. Tap-kafka sends commit messages automatically but only when the data consumed successfully and persisted to local store.          |
@@ -79,6 +79,7 @@ This tap reads Kafka messages and generating singer compatible SCHEMA and RECORD
 | MESSAGE_OFFSET              | Offset extracted from the kafka metadata                                            |
 | MESSAGE_PARTITION           | Partition extracted from the kafka metadata                                         |
 | MESSAGE                     | The original Kafka message                                                          |
+| MESSAGE_KEY                 | (Optional) In case no custom primary key(s) from payload defined                    |
 | DYNAMIC_PRIMARY_KEY(S)      | (Optional) Dynamically added primary key values, extracted from the Kafka message   |
 
  
