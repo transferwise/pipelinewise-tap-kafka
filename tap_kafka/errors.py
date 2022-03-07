@@ -45,3 +45,15 @@ class ProtobufCompilerException(Exception):
     Exception to raise when protobuf compiler fails
     """
     pass
+
+class AllBrokersDownException(Exception):
+    """
+    Exception to raise when kafka broker is not available
+    """
+    pass
+
+class PrimaryKeyNotFoundException(Exception):
+    """
+    Exception to raise if the custom primary key not found in the message
+    """
+    pass

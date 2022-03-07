@@ -16,8 +16,7 @@
             "properties":{
                "id":{
                   "type":[
-                     "string",
-                     "null"
+                     "string"
                   ]
                },
                "message_timestamp":{

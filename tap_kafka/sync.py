@@ -7,12 +7,16 @@ import dateutil
 import singer
 import confluent_kafka
 
+from confluent_kafka import KafkaError
+
 from singer import utils, metadata
+from tap_kafka.errors import AllBrokersDownException
 from tap_kafka.errors import InvalidBookmarkException
 from tap_kafka.errors import InvalidConfigException
 from tap_kafka.errors import InvalidTimestampException
 from tap_kafka.errors import TimestampNotAvailableException
 from tap_kafka.errors import InvalidAssignByKeyException
+from tap_kafka.errors import PrimaryKeyNotFoundException
 from tap_kafka.serialization.json_with_no_schema import JSONSimpleDeserializer
 from tap_kafka.serialization.protobuf import ProtobufDictDeserializer
 from tap_kafka.serialization.protobuf import proto_to_message_type
@@ -108,6 +112,9 @@ def assign_consumer(consumer, topic: str, state: dict, initial_start_time: str) 
     elif initial_start_time is not None and initial_start_time not in ['latest', 'earliest']:
         assign_consumer_to_timestamp(consumer, topic, initial_start_time)
 
+def error_callback(error: KafkaError):
+    if error.code() == KafkaError._ALL_BROKERS_DOWN:
+        raise AllBrokersDownException('All kafka brokers are down')
 
 def init_kafka_consumer(kafka_config, state, value_deserializer):
     LOGGER.info('Initialising Kafka Consumer...')
@@ -117,6 +124,7 @@ def init_kafka_consumer(kafka_config, state, value_deserializer):
         # Required parameters
         'bootstrap.servers': kafka_config['bootstrap_servers'],
         'group.id': kafka_config['group_id'],
+        'error_cb': error_callback,
 
         # Optional parameters
         'session.timeout.ms': kafka_config['session_timeout_ms'],
@@ -178,10 +186,8 @@ def kafka_message_to_singer_record(message, primary_keys):
         pk_selector = primary_keys[key]
         try:
             record[key] = dpath.util.get(message.value(), pk_selector)
-        # Do not fail if PK not found in the message.
-        # Continue without adding the extracted PK to the message
         except KeyError:
-            pass
+            raise PrimaryKeyNotFoundException(f"Custom primary key not found in the message: '{pk_selector}'")
 
     return record
 
