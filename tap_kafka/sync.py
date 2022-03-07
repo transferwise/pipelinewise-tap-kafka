@@ -112,7 +112,6 @@ def assign_consumer(consumer, topic: str, state: dict, initial_start_time: str) 
         assign_consumer_to_timestamp(consumer, topic, initial_start_time)
 
 def error_callback(error: KafkaError):
-    print(error)
     if error.code() == KafkaError._ALL_BROKERS_DOWN:
         raise AllBrokersDownException('All kafka brokers are down')
 
