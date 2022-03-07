@@ -45,3 +45,9 @@ class ProtobufCompilerException(Exception):
     Exception to raise when protobuf compiler fails
     """
     pass
+
+class AllBrokersDownException(Exception):
+    """
+    Exception to raise when kafka broker is not available
+    """
+    pass

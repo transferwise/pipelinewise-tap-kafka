@@ -7,7 +7,10 @@ import dateutil
 import singer
 import confluent_kafka
 
+from confluent_kafka import KafkaError
+
 from singer import utils, metadata
+from tap_kafka.errors import AllBrokersDownException
 from tap_kafka.errors import InvalidBookmarkException
 from tap_kafka.errors import InvalidConfigException
 from tap_kafka.errors import InvalidTimestampException
@@ -108,6 +111,9 @@ def assign_consumer(consumer, topic: str, state: dict, initial_start_time: str) 
     elif initial_start_time is not None and initial_start_time not in ['latest', 'earliest']:
         assign_consumer_to_timestamp(consumer, topic, initial_start_time)
 
+def error_callback(error: KafkaError):
+    if error.code() == KafkaError._ALL_BROKERS_DOWN:
+        raise AllBrokersDownException('All kafka brokers are down')
 
 def init_kafka_consumer(kafka_config, state, value_deserializer):
     LOGGER.info('Initialising Kafka Consumer...')
@@ -117,6 +123,7 @@ def init_kafka_consumer(kafka_config, state, value_deserializer):
         # Required parameters
         'bootstrap.servers': kafka_config['bootstrap_servers'],
         'group.id': kafka_config['group_id'],
+        'error_cb': error_callback,
 
         # Optional parameters
         'session.timeout.ms': kafka_config['session_timeout_ms'],
