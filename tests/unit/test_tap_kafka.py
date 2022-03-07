@@ -258,7 +258,7 @@ class TestSync(unittest.TestCase):
             {
                 "type": "object",
                 "properties": {
-                    "id": {"type": ["string", "null"]},
+                    "id": {"type": ["string"]},
                     "message_timestamp": {"type": ["integer", "string", "null"]},
                     "message_offset": {"type": ["integer", "null"]},
                     "message_partition": {"type": ["integer", "null"]},
@@ -272,8 +272,8 @@ class TestSync(unittest.TestCase):
             {
                 "type": "object",
                 "properties": {
-                    "id": {"type": ["string", "null"]},
-                    "version": {"type": ["string", "null"]},
+                    "id": {"type": ["string"]},
+                    "version": {"type": ["string"]},
                     "message_timestamp": {"type": ["integer", "string", "null"]},
                     "message_offset": {"type": ["integer", "null"]},
                     "message_partition": {"type": ["integer", "null"]},
@@ -319,7 +319,7 @@ class TestSync(unittest.TestCase):
                        "schema": {
                            "type": "object",
                            "properties": {
-                                "id": {"type": ["string", "null"]},
+                                "id": {"type": ["string"]},
                                 "message_timestamp": {"type": ["integer", "string", "null"]},
                                 "message_offset": {"type": ["integer", "null"]},
                                 "message_partition": {"type": ["integer", "null"]},
@@ -347,8 +347,8 @@ class TestSync(unittest.TestCase):
                        "schema": {
                            "type": "object",
                            "properties": {
-                                "id": {"type": ["string", "null"]},
-                                "version": {"type": ["string", "null"]},
+                                "id": {"type": ["string"]},
+                                "version": {"type": ["string"]},
                                 "message_timestamp": {"type": ["integer", "string", "null"]},
                                 "message_offset": {"type": ["integer", "null"]},
                                 "message_partition": {"type": ["integer", "null"]},
