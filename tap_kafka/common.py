@@ -22,7 +22,7 @@ def generate_schema(primary_keys) -> object:
 
     # Primary keys are dynamic schema items
     for key in primary_keys:
-        schema["properties"][key] = {"type": ["string", "null"]}
+        schema["properties"][key] = {"type": ["string"]}
 
     return schema
 
