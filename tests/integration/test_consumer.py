@@ -6,6 +6,7 @@ import singer
 import tap_kafka.serialization
 
 from tap_kafka import sync, get_args
+from tap_kafka.errors import AllBrokersDownException
 from tap_kafka.errors import DiscoveryException
 from tap_kafka.serialization.json_with_no_schema import JSONSimpleSerializer
 import tests.integration.utils as test_utils
@@ -78,6 +79,19 @@ class TestKafkaConsumer(unittest.TestCase):
 
         with self.assertRaises(DiscoveryException):
             tap_kafka.do_discovery(tap_kafka_config)
+
+    def test_tap_kafka_consumer_brokers_down(self):
+        # Consume test messages from not existing broker
+        topic = 'foo'
+        tap_kafka_config = tap_kafka.generate_config({
+            'bootstrap_servers': 'localhost:12345',
+            'topic': topic,
+            'group_id': test_utils.generate_unique_consumer_group(),
+        })
+        catalog = {'streams': tap_kafka.common.generate_catalog(tap_kafka_config)}
+
+        with self.assertRaises(AllBrokersDownException):
+            sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
 
     def test_tap_kafka_consumer(self):
         kafka_config = test_utils.get_kafka_config()
