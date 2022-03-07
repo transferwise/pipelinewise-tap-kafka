@@ -467,7 +467,7 @@ class TestSync(unittest.TestCase):
                 'schema': {
                     'type': 'object',
                     'properties': {
-                        'id': {'type': ['string', 'null']},
+                        'id': {'type': ['string']},
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
