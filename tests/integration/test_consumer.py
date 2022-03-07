@@ -81,9 +81,10 @@ class TestKafkaConsumer(unittest.TestCase):
 
     def test_tap_kafka_consumer_brokers_down(self):
         # Consume test messages from not existing broker
+        topic = 'foo'
         tap_kafka_config = tap_kafka.generate_config({
             'bootstrap_servers': 'localhost:12345',
-            'topic': 'foo',
+            'topic': topic,
             'group_id': test_utils.generate_unique_consumer_group(),
         })
         catalog = {'streams': tap_kafka.common.generate_catalog(tap_kafka_config)}
