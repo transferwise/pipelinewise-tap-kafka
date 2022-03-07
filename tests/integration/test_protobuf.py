@@ -24,13 +24,13 @@ def message_value_to_protobuf(test_message_value: dict, message_type):
 
 def create_protobuf_topic(kafka_config: dict, schema_path: str, num_partitions: int = 1):
     topic_name = test_utils.create_topic(kafka_config['bootstrap_servers'],
-                                         'test-topic-protobuf',
+                                         'test-topic-protobuf.dummy.camelCase',
                                          num_partitions=num_partitions)
-    protobuf_classes_dir = os.path.join(os.getcwd(), kafka_config['proto_classes_dir'], topic_name)
+    protobuf_classes_dir = os.path.join(os.getcwd(), kafka_config['proto_classes_dir'])
 
     # Generate proto class message type from .proto schema
     schema = ''.join(test_utils.get_file_lines(schema_path))
-    message_type = proto_to_message_type(schema, protobuf_classes_dir)
+    message_type = proto_to_message_type(schema, protobuf_classes_dir, topic_name)
 
     return {
         'topic_name': topic_name,

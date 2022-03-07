@@ -24,11 +24,14 @@ class ProtobufDictDeserializer(ProtobufDeserializer):
                              preserving_proto_field_name=True,
                              including_default_value_fields=True)
 
+def protoc_topic_name(topic: str) -> str:
+    """Convert topic name to protoc output filename"""
+    return topic.replace('-', '_').replace('.', '_')
 
 # pylint: disable=R0914
-def proto_to_message_type(schema: str, protobuf_classes_dir: str):
+def proto_to_message_type(schema: str, protobuf_classes_dir: str, topic: str):
     """Compile a protobuf schema to python class and load it dynamically"""
-    mod_name = f"proto_message"
+    mod_name = f"proto_message_{protoc_topic_name(topic)}"
     proto_name = f"{mod_name}.proto"
     module_name = f"{mod_name}_pb2"
     module_filename = f"{module_name}.py"

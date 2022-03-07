@@ -4,6 +4,7 @@ import tap_kafka
 from confluent_kafka.serialization import SerializationError
 from tap_kafka.serialization.json_with_no_schema import JSONSimpleDeserializer
 from tap_kafka.serialization.protobuf import proto_to_message_type
+from tap_kafka.serialization.protobuf import protoc_topic_name
 from tap_kafka.errors import ProtobufCompilerException
 
 
@@ -21,7 +22,7 @@ class TestSerializers(unittest.TestCase):
     def test_protobuf_to_message_type(self):
         # Using invalid .proto schema should raise an exception
         with self.assertRaises(ProtobufCompilerException):
-            proto_to_message_type('invalid-proto-schema', tap_kafka.DEFAULT_PROTO_CLASSES_DIR)
+            proto_to_message_type('invalid-proto-schema', tap_kafka.DEFAULT_PROTO_CLASSES_DIR, 'test-topic')
 
         # Compile valid .proto to python class
         test_item_class = proto_to_message_type("""syntax = "proto3";
@@ -29,7 +30,7 @@ class TestSerializers(unittest.TestCase):
             string name = 1;
             int64 favourite_number = 2;
             string favourite_color = 3;
-        }""", tap_kafka.DEFAULT_PROTO_CLASSES_DIR)
+        }""", tap_kafka.DEFAULT_PROTO_CLASSES_DIR, 'test-topic')
         self.assertEqual(test_item_class.DESCRIPTOR.name, "TestItem")
 
         # Create an instance of the test_item_class
@@ -39,3 +40,14 @@ class TestSerializers(unittest.TestCase):
         self.assertEqual(test_item.name, "test-name")
         self.assertEqual(test_item.favourite_number, 99)
         self.assertEqual(test_item.favourite_color, "pink")
+
+    def test_protoc_topic_name(self):
+        """Should transform topic names to protoc equivalent output file names"""
+        # Dash should be converted to underscores
+        self.assertEqual(protoc_topic_name('test-topic'), 'test_topic')
+        # Dots should be converted to underscores
+        self.assertEqual(protoc_topic_name('test.topic'), 'test_topic')
+        # Camelcase should remain
+        self.assertEqual(protoc_topic_name('testTopic'), 'testTopic')
+        # Mix of everything
+        self.assertEqual(protoc_topic_name('test-topic.dummy.camelCase_foo'), 'test_topic_dummy_camelCase_foo')
