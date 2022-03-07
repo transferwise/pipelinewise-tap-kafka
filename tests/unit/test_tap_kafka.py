@@ -15,7 +15,8 @@ from tap_kafka.errors import (
     InvalidBookmarkException,
     InvalidTimestampException,
     InvalidAssignByKeyException,
-    TimestampNotAvailableException
+    TimestampNotAvailableException,
+    PrimaryKeyNotFoundException,
 )
 import confluent_kafka
 
@@ -257,7 +258,7 @@ class TestSync(unittest.TestCase):
             {
                 "type": "object",
                 "properties": {
-                    "id": {"type": ["string", "null"]},
+                    "id": {"type": ["string"]},
                     "message_timestamp": {"type": ["integer", "string", "null"]},
                     "message_offset": {"type": ["integer", "null"]},
                     "message_partition": {"type": ["integer", "null"]},
@@ -271,8 +272,8 @@ class TestSync(unittest.TestCase):
             {
                 "type": "object",
                 "properties": {
-                    "id": {"type": ["string", "null"]},
-                    "version": {"type": ["string", "null"]},
+                    "id": {"type": ["string"]},
+                    "version": {"type": ["string"]},
                     "message_timestamp": {"type": ["integer", "string", "null"]},
                     "message_offset": {"type": ["integer", "null"]},
                     "message_partition": {"type": ["integer", "null"]},
@@ -318,7 +319,7 @@ class TestSync(unittest.TestCase):
                        "schema": {
                            "type": "object",
                            "properties": {
-                                "id": {"type": ["string", "null"]},
+                                "id": {"type": ["string"]},
                                 "message_timestamp": {"type": ["integer", "string", "null"]},
                                 "message_offset": {"type": ["integer", "null"]},
                                 "message_partition": {"type": ["integer", "null"]},
@@ -346,8 +347,8 @@ class TestSync(unittest.TestCase):
                        "schema": {
                            "type": "object",
                            "properties": {
-                                "id": {"type": ["string", "null"]},
-                                "version": {"type": ["string", "null"]},
+                                "id": {"type": ["string"]},
+                                "version": {"type": ["string"]},
                                 "message_timestamp": {"type": ["integer", "string", "null"]},
                                 "message_offset": {"type": ["integer", "null"]},
                                 "message_partition": {"type": ["integer", "null"]},
@@ -466,7 +467,7 @@ class TestSync(unittest.TestCase):
                 'schema': {
                     'type': 'object',
                     'properties': {
-                        'id': {'type': ['string', 'null']},
+                        'id': {'type': ['string']},
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
@@ -797,13 +798,9 @@ class TestSync(unittest.TestCase):
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id', 'not-existing-key': '/path/not/exists'}
-        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys), {
-            'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-            'id': 1,
-            'message_timestamp': 123456789,
-            'message_offset': 1234,
-            'message_partition': 0
-        })
+
+        with self.assertRaises(PrimaryKeyNotFoundException):
+            sync.kafka_message_to_singer_record(message, primary_keys)
 
     def test_commit_consumer_to_bookmarked_state(self):
         """Commit should commit every partition in the bookmark state"""

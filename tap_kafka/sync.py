@@ -16,6 +16,7 @@ from tap_kafka.errors import InvalidConfigException
 from tap_kafka.errors import InvalidTimestampException
 from tap_kafka.errors import TimestampNotAvailableException
 from tap_kafka.errors import InvalidAssignByKeyException
+from tap_kafka.errors import PrimaryKeyNotFoundException
 from tap_kafka.serialization.json_with_no_schema import JSONSimpleDeserializer
 from tap_kafka.serialization.protobuf import ProtobufDictDeserializer
 from tap_kafka.serialization.protobuf import proto_to_message_type
@@ -185,10 +186,8 @@ def kafka_message_to_singer_record(message, primary_keys):
         pk_selector = primary_keys[key]
         try:
             record[key] = dpath.util.get(message.value(), pk_selector)
-        # Do not fail if PK not found in the message.
-        # Continue without adding the extracted PK to the message
         except KeyError:
-            pass
+            raise PrimaryKeyNotFoundException(f"Custom primary key not found in the message: '{pk_selector}'")
 
     return record
 

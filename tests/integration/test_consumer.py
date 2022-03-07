@@ -135,7 +135,7 @@ class TestKafkaConsumer(unittest.TestCase):
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
                         'message': {'type': ['object', 'array', 'string', 'null']},
-                        'id': {'type': ['string', 'null']}
+                        'id': {'type': ['string']}
                     }
                 },
                 'key_properties': ['id']
@@ -167,7 +167,7 @@ class TestKafkaConsumer(unittest.TestCase):
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
                         'message': {'type': ['object', 'array', 'string', 'null']},
-                        'id': {'type': ['string', 'null']}
+                        'id': {'type': ['string']}
                     }
                 },
                 'key_properties': ['id']
@@ -282,7 +282,7 @@ class TestKafkaConsumer(unittest.TestCase):
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
                         'message': {'type': ['object', 'array', 'string', 'null']},
-                        'id': {'type': ['string', 'null']}
+                        'id': {'type': ['string']}
                     }
                 },
                 'key_properties': ['id']
