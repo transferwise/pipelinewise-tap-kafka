@@ -1,3 +1,13 @@
+6.0.0 (2022-03-17)
+------------------
+
+- Use unique proto class names per topic
+- Raise exception on all brokers down
+- Raise exception if custom PK not exists in the message
+- Bump `dpath` from `2.0.5` to `2.0.6`
+- Bump `grpcio-tools` from `1.43.0` to `1.44.0`
+- Bump `pytest` from `6.2.5` to `7.0.1`
+
 5.1.0 (2022-01-27)
 ------------------
 *Features*:
