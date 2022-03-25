@@ -54,6 +54,7 @@ def init_value_deserializer(kafka_config):
 
     return value_deserializer
 
+
 def send_activate_version_message(state, tap_stream_id):
     """Generate and send singer ACTIVATE message"""
     stream_version = singer.get_bookmark(state, tap_stream_id, 'version')
@@ -112,9 +113,11 @@ def assign_consumer(consumer, topic: str, state: dict, initial_start_time: str) 
     elif initial_start_time is not None and initial_start_time not in ['latest', 'earliest']:
         assign_consumer_to_timestamp(consumer, topic, initial_start_time)
 
+
 def error_callback(error: KafkaError):
     if error.code() == KafkaError._ALL_BROKERS_DOWN:
         raise AllBrokersDownException('All kafka brokers are down')
+
 
 def init_kafka_consumer(kafka_config, state, value_deserializer):
     LOGGER.info('Initialising Kafka Consumer...')
@@ -171,7 +174,7 @@ def get_timestamp_from_timestamp_tuple(kafka_ts: tuple) -> float:
     raise InvalidTimestampException(f'Invalid kafka timestamp. It needs to be a tuple but it is a {type(kafka_ts)}.')
 
 
-def kafka_message_to_singer_record(message, primary_keys):
+def kafka_message_to_singer_record(message, primary_keys: dict, use_message_key: bool):
     """Transforms kafka message to singer record message"""
     # Create dictionary with base attributes
     record = {
@@ -183,23 +186,24 @@ def kafka_message_to_singer_record(message, primary_keys):
 
     # Add PKs to the record. In case custom PKs are defined, use them
     if primary_keys:
-      for key in primary_keys:
-          pk_selector = primary_keys[key]
-          try:
-              record[key] = dpath.util.get(message.value(), pk_selector)
-          except KeyError:
-              raise PrimaryKeyNotFoundException(f"Custom primary key not found in the message: '{pk_selector}'")
-              
-    elif message.key():  # In absence of custom PKs, try to use the message one
+        for key in primary_keys:
+            pk_selector = primary_keys[key]
+            try:
+                record[key] = dpath.util.get(message.value(), pk_selector)
+            except KeyError:
+                raise PrimaryKeyNotFoundException(f"Custom primary key not found in the message: '{pk_selector}'")
+    elif use_message_key:
+        if not message.key():
+            raise PrimaryKeyNotFoundException("Kafka message key not found in the message")
         # message.key() can return string or bytes, so extra check to accommodate with either
         record['message_key'] = message.key() if isinstance(message.key(), str) else message.key().decode('utf-8')
 
     return record
 
 
-def consume_kafka_message(message, topic, primary_keys):
+def consume_kafka_message(message, topic, primary_keys, use_message_key):
     """Insert single kafka message into the internal store"""
-    singer_record = kafka_message_to_singer_record(message, primary_keys)
+    singer_record = kafka_message_to_singer_record(message, primary_keys, use_message_key)
     singer.write_message(singer.RecordMessage(stream=topic, record=singer_record, time_extracted=utils.now()))
 
 
@@ -271,6 +275,7 @@ def read_kafka_topic(consumer, kafka_config, state):
     """Read kafka topic continuously and writing transformed singer messages to STDOUT"""
     topic = kafka_config['topic']
     primary_keys = kafka_config['primary_keys']
+    use_message_key = kafka_config['use_message_key']
     max_runtime_ms = kafka_config['max_runtime_ms']
     commit_interval_ms = kafka_config['commit_interval_ms']
     consumed_messages = 0
@@ -305,7 +310,7 @@ def read_kafka_topic(consumer, kafka_config, state):
             last_commit_time = time.time()
 
         # Generate singer message
-        consume_kafka_message(message, topic, primary_keys)
+        consume_kafka_message(message, topic, primary_keys, use_message_key)
 
         # Update bookmark after every consumed message
         state = update_bookmark(state, topic, message)

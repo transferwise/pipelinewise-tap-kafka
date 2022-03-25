@@ -93,7 +93,7 @@ class TestProtobuf(unittest.TestCase):
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
                         'message': {'type': ['object', 'array', 'string', 'null']},
-                        'message_key': {'type': ['string', 'null']}
+                        'message_key': {'type': ['string']}
                     }
                 },
                 'key_properties': ['message_key']

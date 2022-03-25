@@ -93,6 +93,7 @@ def validate_config(config) -> None:
     if config.get('message_format') == 'protobuf' and not config.get('proto_schema'):
         raise InvalidConfigException("Invalid config. Cannot find required proto_schema for protobuf message type")
 
+
 def generate_config(args_config):
     config = {
         # Add required parameters
@@ -102,6 +103,7 @@ def generate_config(args_config):
 
         # Add optional parameters with defaults
         'primary_keys': args_config.get('primary_keys', {}),
+        'use_message_key': args_config.get('use_message_key', True),
         'initial_start_time': args_config.get('initial_start_time', DEFAULT_INITIAL_START_TIME),
         'max_runtime_ms': args_config.get('max_runtime_ms', DEFAULT_MAX_RUNTIME_MS),
         'commit_interval_ms': args_config.get('commit_interval_ms', DEFAULT_COMMIT_INTERVAL_MS),

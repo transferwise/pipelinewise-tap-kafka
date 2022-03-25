@@ -381,7 +381,7 @@ class TestKafkaConsumer(unittest.TestCase):
                 'schema': {
                     'type': 'object',
                     'properties': {
-                        'message_key': {'type': ['string', 'null']},
+                        'message_key': {'type': ['string']},
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
@@ -432,7 +432,7 @@ class TestKafkaConsumer(unittest.TestCase):
                 'schema': {
                     'type': 'object',
                     'properties': {
-                        'message_key': {'type': ['string', 'null']},
+                        'message_key': {'type': ['string']},
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
@@ -499,7 +499,7 @@ class TestKafkaConsumer(unittest.TestCase):
                 'schema': {
                     'type': 'object',
                     'properties': {
-                        'message_key': {'type': ['string', 'null']},
+                        'message_key': {'type': ['string']},
                         'message_partition': {'type': ['integer', 'null']},
                         'message_offset': {'type': ['integer', 'null']},
                         'message_timestamp': {'type': ['integer', 'string', 'null']},
