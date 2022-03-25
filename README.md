@@ -69,7 +69,7 @@ Full list of options in `config.json`:
 | max_poll_interval_ms              | Integer |            | (Default: 300000) KafkaConsumer setting. The maximum delay between invocations of poll() when using consumer group management.                                                                                                                      |
 | message_format                    | String  |            | (Default: json) Supported message formats are `json` and `protobuf`.                                                                                                                                                                                |
 | proto_schema                      | String  |            | Protobuf message format in `.proto` syntax. Required if the `message_format` is `protobuf`.                                                                                                                                                         |
-| proto_classess_dir                | String  |            | (Default: current working dir)                                                                                                                                                                                                                      |
+| proto_classes_dir                 | String  |            | (Default: current working dir)                                                                                                                                                                                                                      |
 
 
 This tap reads Kafka messages and generating singer compatible SCHEMA and RECORD messages in the following format.

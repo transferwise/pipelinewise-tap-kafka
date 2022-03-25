@@ -44,7 +44,8 @@ def init_value_deserializer(kafka_config):
 
     elif kafka_config['message_format'] == 'protobuf':
         message_type = proto_to_message_type(kafka_config['proto_schema'],
-                                             kafka_config['proto_classes_dir'])
+                                             kafka_config['proto_classes_dir'],
+                                             kafka_config['topic'])
         value_deserializer = ProtobufDictDeserializer(message_type, {
             'use.deprecated.format': False
         })
