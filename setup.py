@@ -20,7 +20,7 @@ setup(name='pipelinewise-tap-kafka',
           'pipelinewise-singer-python==2.*',
           'dpath==2.0.6',
           'confluent-kafka[protobuf]==1.8.2',
-          'grpcio-tools==1.44.0'
+          'grpcio-tools==1.45.0'
       ],
       extras_require={
           'test': [
