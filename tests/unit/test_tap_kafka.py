@@ -116,6 +116,7 @@ class TestSync(unittest.TestCase):
         self.config = {
             'topic': 'dummy_topic',
             'primary_keys': {},
+            'use_message_key': False,
             'max_runtime_ms': tap_kafka.DEFAULT_MAX_RUNTIME_MS,
             'consumer_timeout_ms': tap_kafka.DEFAULT_CONSUMER_TIMEOUT_MS,
             'commit_interval_ms': tap_kafka.DEFAULT_COMMIT_INTERVAL_MS
@@ -133,6 +134,7 @@ class TestSync(unittest.TestCase):
             'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3',
             'primary_keys': {},
+            'use_message_key': True,
             'initial_start_time': 'latest',
             'max_runtime_ms': tap_kafka.DEFAULT_MAX_RUNTIME_MS,
             'commit_interval_ms': tap_kafka.DEFAULT_COMMIT_INTERVAL_MS,
@@ -175,6 +177,7 @@ class TestSync(unittest.TestCase):
             'primary_keys': {
                 'id': '$.jsonpath.to.primary_key'
             },
+            'use_message_key': True,
             'initial_start_time': 'latest',
             'max_runtime_ms': 1111,
             'commit_interval_ms': 10000,
@@ -282,14 +285,39 @@ class TestSync(unittest.TestCase):
             })
 
     def test_generate_catalog_with_no_pk(self):
-        """table-key-properties should be empty list when no PK defined"""
-        self.assertEqual(common.generate_catalog({"topic": "dummy_topic"}),
+        """table-key-properties cannot be empty when custom PK is not defined and default config is used"""
+        self.assertEqual(common.generate_catalog({"topic": "dummy_topic", 'use_message_key': True}),
                [
                    {
                        "metadata": [
                            {
                                "breadcrumb": (),
-                                "metadata": {"table-key-properties": []}
+                                "metadata": {"table-key-properties": ['message_key']}
+                           }
+                       ],
+                       "schema": {
+                           "type": "object",
+                           "properties": {
+                                'message_key': {'type': ['string']},
+                                "message_timestamp": {"type": ["integer", "string", "null"]},
+                                "message_offset": {"type": ["integer", "null"]},
+                                "message_partition": {"type": ["integer", "null"]},
+                                "message": {"type": ["object", "array", "string", "null"]}
+                           }
+                       },
+                       "tap_stream_id": "dummy_topic"
+                   }
+               ])
+
+    def test_generate_catalog_with_no_keys(self):
+        """table-key-properties should be empty when custom PK is not defined and default config overridden"""
+        self.assertEqual(common.generate_catalog({"topic": "dummy_topic", 'use_message_key': False}),
+               [
+                   {
+                       "metadata": [
+                           {
+                               "breadcrumb": (),
+                               "metadata": {"table-key-properties": []}
                            }
                        ],
                        "schema": {
@@ -746,28 +774,45 @@ class TestSync(unittest.TestCase):
         """Validate if kafka messages converted to singer messages correctly"""
         topic = 'test-topic'
 
-        # Converting without primary key
+        # Converting without custom primary or message key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
                                            offset=1234,
                                            partition=0)
         primary_keys = {}
-        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys), {
+        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=False), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'message_timestamp': 123456789,
             'message_offset': 1234,
             'message_partition': 0
         })
 
-        # Converting with primary key
+        # Converting with message key
+        message = KafkaConsumerMessageMock(topic=topic,
+                                           value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           offset=1234,
+                                           partition=0,
+                                           key='1')
+
+        primary_keys = {}
+        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True), {
+            'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+            'message_timestamp': 123456789,
+            'message_offset': 1234,
+            'message_partition': 0,
+            'message_key': '1'
+        })
+
+        # Converting with custom primary key and default setting for message key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id'}
-        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys), {
+        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'id': 1,
             'message_timestamp': 123456789,
@@ -775,14 +820,14 @@ class TestSync(unittest.TestCase):
             'message_partition': 0
         })
 
-        # Converting with nested and multiple primary keys
+        # Converting with nested and multiple custom primary keys and default setting for message key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id', 'y': '/data/y'}
-        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys), {
+        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'id': 1,
             'y': 'value-y',
@@ -791,7 +836,7 @@ class TestSync(unittest.TestCase):
             'message_partition': 0
         })
 
-        # Converting with not existing primary keys
+        # Converting with not existing custom primary keys
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
                                            timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
@@ -800,7 +845,18 @@ class TestSync(unittest.TestCase):
         primary_keys = {'id': '/id', 'not-existing-key': '/path/not/exists'}
 
         with self.assertRaises(PrimaryKeyNotFoundException):
-            sync.kafka_message_to_singer_record(message, primary_keys)
+            sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=False)
+
+        # Converting without custom PK and absent message key with default settings
+        message = KafkaConsumerMessageMock(topic=topic,
+                                           value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           offset=1234,
+                                           partition=0)
+        primary_keys = {}
+
+        with self.assertRaises(PrimaryKeyNotFoundException):
+            sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True)
 
     def test_commit_consumer_to_bookmarked_state(self):
         """Commit should commit every partition in the bookmark state"""
