@@ -187,8 +187,7 @@ def kafka_message_to_singer_record(message, primary_keys: dict, use_message_key:
 
     # Add PKs to the record. In case custom PKs are defined, use them
     if primary_keys:
-        for key in primary_keys:
-            pk_selector = primary_keys[key]
+        for key, pk_selector in primary_keys.items():
             try:
                 record[key] = dpath.util.get(message.value(), pk_selector)
             except KeyError:
