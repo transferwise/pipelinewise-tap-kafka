@@ -1,3 +1,12 @@
+7.0.0 (2022-03-29)
+------------------
+**BREAKING CHANGES**
+
+Upgrading from 6.x to 7.x: For the current taps without any primary keys defined, set new configuration property `use_message_key` to `false`. Taps left with default settings and no custom primary keys specified will fail if kafka messages do not have keys and lead to unexpected behaviour on targets otherwise.
+
+*Features*:
+- Added support for the message keys to be used as primary key for the record. Using message key is now a default option where custom PKs are not defined.
+
 6.0.0 (2022-03-17)
 ------------------
 
