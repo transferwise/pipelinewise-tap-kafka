@@ -1,3 +1,9 @@
+7.1.0 (2022-07-14)
+------------------
+
+- Bump `pipelinewise-tap-kafka` from confluent-kafka from `1.8.2` to `1.9.0`.
+- Remove CI checks for Python 3.6
+
 7.0.0 (2022-03-29)
 ------------------
 **BREAKING CHANGES**
