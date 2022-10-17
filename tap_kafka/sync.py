@@ -227,6 +227,14 @@ def bookmarked_partition_to_next_position(topic: str,
         raise InvalidBookmarkException(f"Invalid bookmark. One or more bookmark entries using invalid type(s).")
 
 
+def seek_partitions(consumer, partitions):
+    """Seek partitions to offsets"""
+
+    LOGGER.info(f"Seek Partitions to Offsets {partitions}")
+    for partition in partitions:
+        consumer.seek(partition)
+
+
 def assign_consumer_to_timestamp(consumer, topic: str, timestamp: str, timeout: int = 30) -> None:
     """Assign consumer topic of all partitions to given timestamp"""
     # Get list of all partitions
@@ -242,6 +250,8 @@ def assign_consumer_to_timestamp(consumer, topic: str, timestamp: str, timeout: 
     # Assign to the correct position
     consumer.assign(partitions_to_assign)
 
+    seek_partitions(consumer, partitions_to_assign)
+
 
 def assign_consumer_to_bookmarked_state(consumer, topic: str, state, assign_by: str = 'timestamp') -> None:
     """Assign consumer to bookmarked positions"""
@@ -254,6 +264,8 @@ def assign_consumer_to_bookmarked_state(consumer, topic: str, state, assign_by: 
         partitions_to_assign = consumer.offsets_for_times(partitions_to_assign)
 
     consumer.assign(partitions_to_assign)
+
+    seek_partitions(consumer, partitions_to_assign)
 
 
 def commit_consumer_to_bookmarked_state(consumer, topic, state):
