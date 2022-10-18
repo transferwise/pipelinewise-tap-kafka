@@ -1,6 +1,9 @@
+7.1.1 (2022-10-18)
+------------------
+- Introducing the use of the `seek` method to reset the source partition offsets at the start of a run
+
 7.1.0 (2022-07-14)
 ------------------
-
 - Bump `pipelinewise-tap-kafka` from confluent-kafka from `1.8.2` to `1.9.0`.
 - Remove CI checks for Python 3.6
 
@@ -64,7 +67,7 @@ Upgrading from 4.x to 5.x: Please remove the existing `state.json` created by ta
 4.0.0 (2020-08-27)
 -------------------
 
-- Improve the performance of persisting kafka messages if the local store cannot perform frequent file appends and causing high I/O issues   
+- Improve the performance of persisting kafka messages if the local store cannot perform frequent file appends and causing high I/O issues
 - Switching from `jsonpath-ng` to `dpath` python library to improve the performance of extracting primary keys
 - Change the syntax of `primary_keys` from JSONPath to `/slashed/paths` ala XPath
 
