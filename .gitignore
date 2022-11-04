@@ -11,6 +11,7 @@ __pycache__/
 *.egg-info/
 *__pycache__/
 *~
+build/
 dist/
 test_dir/
 tap-kafka-proto-classes/
@@ -18,6 +19,7 @@ tap-kafka-proto-classes/
 
 # Singer JSON files
 properties.json
+catalog.json
 config.json
 state.json
 
