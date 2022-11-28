@@ -57,10 +57,11 @@ Full list of options in `config.json`:
 |-----------------------------------|---------|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | bootstrap_servers                 | String  | Yes        | `host[:port]` string (or list of comma separated `host[:port]` strings) that the consumer should contact to bootstrap initial cluster metadata.                                                                                                     |
 | group_id                          | String  | Yes        | The name of the consumer group to join for dynamic partition assignment (if enabled), and to use for fetching and committing offsets.                                                                                                               |
-| topic                             | String  | Yes        | Name of kafka topics to subscribe to                                                                                                                                                                                                                |
+| topic                             | String  | Yes        | Name of kafka topic to subscribe to                                                                                                                                                                                                                 |
+| partitions                        | List    |            | (Default: [] (all)) Partition(s) of topic to consume, example `[0,4]`                                                                                                                                                                               |
 | primary_keys                      | Object  |            | Optionally you can define primary key for the consumed messages. It requires a column name and `/slashed/paths` ala xpath selector to extract the value from the kafka messages. The extracted column will be added to every output singer message. |
-| use_message_key                   | Bool    |            | (Default: true) Defines whether to use Kafka message key as a primary key for the record. Note: custom primary key(s) takes precedence if such defined and use_message_key is set to `true`.                                                        |
-| initial_start_time                | String  |            | (Default: latest) Start time reference of the message consumption if no bookmarked position in `state.sjon`. One of: `latest`, `earliest` or an ISO-8601 formatted timestamp string.                                                                |
+| use_message_key                   | Bool    |            | (Default: true) Defines whether to use Kafka message key as a primary key for the record. Note: if a custom primary key(s) has been defined, it will be used instead of the message_key.                                                            |
+| initial_start_time                | String  |            | (Default: latest) Start time reference of the message consumption if no bookmarked position in `state.json`. One of: `beginning`, `earliest`, `latest` or an ISO-8601 formatted timestamp string.                                                   |
 | max_runtime_ms                    | Integer |            | (Default: 300000) The maximum time for the tap to collect new messages from Kafka topic. If this time exceeds it will flush the batch and close kafka connection.                                                                                   |
 | commit_interval_ms                | Integer |            | (Default: 5000) Number of milliseconds between two commits. This is different than the kafka auto commit feature. Tap-kafka sends commit messages automatically but only when the data consumed successfully and persisted to local store.          |
 | consumer_timeout_ms               | Integer |            | (Default: 10000) KafkaConsumer setting. Number of milliseconds to block during message iteration before raising StopIteration                                                                                                                       |
@@ -83,7 +84,7 @@ This tap reads Kafka messages and generating singer compatible SCHEMA and RECORD
 | MESSAGE_KEY                 | (Optional) Added by default (can be overridden) in case no custom keys defined      |
 | DYNAMIC_PRIMARY_KEY(S)      | (Optional) Dynamically added primary key values, extracted from the Kafka message   |
 
- 
+
 ### Run the tap in Discovery Mode
 
 ```
@@ -126,7 +127,7 @@ The tap will write bookmarks to stdout which can be captured and passed as an op
   python3 -m venv venv
   . venv/bin/activate
   pip install --upgrade pip
-  pip install .[test]
+  pip install -e .[test]
 ```
 
 2. To run unit tests:
@@ -146,6 +147,6 @@ The tap will write bookmarks to stdout which can be captured and passed as an op
   python3 -m venv venv
   . venv/bin/activate
   pip install --upgrade pip
-  pip install .[test]
+  pip install -e .[test]
   pylint tap_kafka -d C,W,unexpected-keyword-arg,duplicate-code
 ```

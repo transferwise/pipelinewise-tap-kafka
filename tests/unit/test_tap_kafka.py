@@ -2,8 +2,6 @@ import os
 import time
 import json
 import unittest
-from unittest.mock import patch
-
 
 import singer
 import tap_kafka
@@ -14,7 +12,6 @@ from tap_kafka.errors import (
     InvalidConfigException,
     InvalidBookmarkException,
     InvalidTimestampException,
-    InvalidAssignByKeyException,
     TimestampNotAvailableException,
     PrimaryKeyNotFoundException,
 )
@@ -111,6 +108,8 @@ class TestSync(unittest.TestCase):
     Unit Tests
     """
 
+    maxDiff = None
+
     @classmethod
     def setup_class(self):
         self.config = {
@@ -129,13 +128,13 @@ class TestSync(unittest.TestCase):
             'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3'
         }
-        self.assertEqual(tap_kafka.generate_config(minimal_config), {
+        self.assertDictEqual(tap_kafka.generate_config(minimal_config), {
             'topic': 'my_topic',
             'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3',
             'primary_keys': {},
             'use_message_key': True,
-            'initial_start_time': 'latest',
+            'initial_start_time': tap_kafka.DEFAULT_INITIAL_START_TIME,
             'max_runtime_ms': tap_kafka.DEFAULT_MAX_RUNTIME_MS,
             'commit_interval_ms': tap_kafka.DEFAULT_COMMIT_INTERVAL_MS,
             'consumer_timeout_ms': tap_kafka.DEFAULT_CONSUMER_TIMEOUT_MS,
@@ -144,6 +143,7 @@ class TestSync(unittest.TestCase):
             'max_poll_records': tap_kafka.DEFAULT_MAX_POLL_RECORDS,
             'max_poll_interval_ms': tap_kafka.DEFAULT_MAX_POLL_INTERVAL_MS,
             'message_format': tap_kafka.DEFAULT_MESSAGE_FORMAT,
+            'partitions': tap_kafka.DEFAULT_PARTITIONS,
             'proto_classes_dir': tap_kafka.DEFAULT_PROTO_CLASSES_DIR,
             'proto_schema': tap_kafka.DEFAULT_PROTO_SCHEMA,
         })
@@ -152,6 +152,7 @@ class TestSync(unittest.TestCase):
         """Should generate config dictionary with every required and optional parameter with custom values"""
         custom_config = {
             'topic': 'my_topic',
+            'partitions': [2, 3],
             'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3',
             'primary_keys': {
@@ -170,8 +171,9 @@ class TestSync(unittest.TestCase):
             'proto_classes_dir': '/tmp/proto-classes',
             'proto_schema': 'proto-schema'
         }
-        self.assertEqual(tap_kafka.generate_config(custom_config), {
+        self.assertDictEqual(tap_kafka.generate_config(custom_config), {
             'topic': 'my_topic',
+            'partitions': [2, 3],
             'group_id': 'my_group_id',
             'bootstrap_servers': 'server1,server2,server3',
             'primary_keys': {
@@ -204,10 +206,27 @@ class TestSync(unittest.TestCase):
                                        'group_id': 'my_group_id',
                                        'bootstrap_servers': 'server1,server2,server3',
                                        'message_format': 'json',
-                                       'initial_start_time': 'invalid-iso8601-timestmap'})
+                                       'initial_start_time': 'ssssss'})
+
+        # Partitions are in a list
+        self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'partitions': [1, 2, 2, 2],
+                                                     'group_id': 'my_group_id',
+                                                     'bootstrap_servers': 'server1,server2,server3',
+                                                     'message_format': 'json',
+                                                     'initial_start_time': 'latest'}))
+
+        # Initial start time is a reserved word (beginning)
+        self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'partitions': [],
+                                                     'group_id': 'my_group_id',
+                                                     'bootstrap_servers': 'server1,server2,server3',
+                                                     'message_format': 'json',
+                                                     'initial_start_time': 'beginning'}))
 
         # Initial start time is a reserved word (latest)
         self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'partitions': [],
                                                      'group_id': 'my_group_id',
                                                      'bootstrap_servers': 'server1,server2,server3',
                                                      'message_format': 'json',
@@ -215,36 +234,49 @@ class TestSync(unittest.TestCase):
 
         # Initial start time is a reserved word (earliset)
         self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'partitions': [],
                                                      'group_id': 'my_group_id',
                                                      'bootstrap_servers': 'server1,server2,server3',
                                                      'message_format': 'json',
                                                      'initial_start_time': 'earliest'}))
 
-        # Initial start time is a valid iso 8601 timestamp
+        # Initial start time is an ISO timestamp
         self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'partitions': [],
                                                      'group_id': 'my_group_id',
                                                      'bootstrap_servers': 'server1,server2,server3',
                                                      'message_format': 'json',
-                                                     'initial_start_time': '2021-11-01 12:00:00'}))
+                                                     'initial_start_time': '2022-12-03T11:39:53'}))
+
+        # Should raise an Exception if initial_start_time is not ISO timestamp
+        with self.assertRaises(InvalidConfigException):
+            tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'partitions': [],
+                                                     'group_id': 'my_group_id',
+                                                     'bootstrap_servers': 'server1,server2,server3',
+                                                     'message_format': 'json',
+                                                     'initial_start_time': 'not-ISO-sorry'})
 
         # Should raise an exception if message format is protobuf but proto schema is not provided
         with self.assertRaises(InvalidConfigException):
             tap_kafka.validate_config({'topic': 'my_topic',
+                                       'partitions': [],
                                        'group_id': 'my_group_id',
                                        'bootstrap_servers': 'server1,server2,server3',
                                        'message_format': 'protobuf',
                                        'initial_start_time': 'earliest'})
 
         self.assertIsNone(tap_kafka.validate_config({'topic': 'my_topic',
+                                                     'partitions': [],
                                                      'group_id': 'my_group_id',
                                                      'bootstrap_servers': 'server1,server2,server3',
                                                      'message_format': 'protobuf',
                                                      'proto_schema': 'proto-schema',
-                                                     'initial_start_time': '2021-11-01 12:00:00'}))
+                                                     'initial_start_time': 'latest'}))
 
     def test_generate_schema_with_no_pk(self):
         """Should not add extra column when no PK defined"""
-        self.assertEqual(common.generate_schema([]),
+        self.assertDictEqual(common.generate_schema([]),
             {
                 "type": "object",
                 "properties": {
@@ -257,7 +289,7 @@ class TestSync(unittest.TestCase):
 
     def test_generate_schema_with_pk(self):
         """Should add one extra column if PK defined"""
-        self.assertEqual(common.generate_schema(["id"]),
+        self.assertDictEqual(common.generate_schema(["id"]),
             {
                 "type": "object",
                 "properties": {
@@ -271,7 +303,7 @@ class TestSync(unittest.TestCase):
 
     def test_generate_schema_with_composite_pk(self):
         """Should add multiple extra columns if composite PK defined"""
-        self.assertEqual(common.generate_schema(["id", "version"]),
+        self.assertDictEqual(common.generate_schema(["id", "version"]),
             {
                 "type": "object",
                 "properties": {
@@ -286,7 +318,7 @@ class TestSync(unittest.TestCase):
 
     def test_generate_catalog_with_no_pk(self):
         """table-key-properties cannot be empty when custom PK is not defined and default config is used"""
-        self.assertEqual(common.generate_catalog({"topic": "dummy_topic", 'use_message_key': True}),
+        self.assertListEqual(common.generate_catalog({"topic": "dummy_topic", 'use_message_key': True}),
                [
                    {
                        "metadata": [
@@ -311,7 +343,7 @@ class TestSync(unittest.TestCase):
 
     def test_generate_catalog_with_no_keys(self):
         """table-key-properties should be empty when custom PK is not defined and default config overridden"""
-        self.assertEqual(common.generate_catalog({"topic": "dummy_topic", 'use_message_key': False}),
+        self.assertListEqual(common.generate_catalog({"topic": "dummy_topic", 'use_message_key': False}),
                [
                    {
                        "metadata": [
@@ -335,7 +367,7 @@ class TestSync(unittest.TestCase):
 
     def test_generate_catalog_with_pk(self):
         """table-key-properties should be a list with single item when PK defined"""
-        self.assertEqual(common.generate_catalog({"topic": "dummy_topic", "primary_keys": {"id": "^.dummyJson.id"}}),
+        self.assertListEqual(common.generate_catalog({"topic": "dummy_topic", "primary_keys": {"id": "^.dummyJson.id"}}),
                [
                    {
                        "metadata": [
@@ -360,7 +392,7 @@ class TestSync(unittest.TestCase):
 
     def test_generate_catalog_with_composite_pk(self):
         """table-key-properties should be a list with two items when composite PK defined"""
-        self.assertEqual(common.generate_catalog({"topic": "dummy_topic",
+        self.assertListEqual(common.generate_catalog({"topic": "dummy_topic",
                                                   "primary_keys":{
                                                       "id": "dummyJson.id", "version": "dummyJson.version"}
                                                   }),
@@ -453,7 +485,7 @@ class TestSync(unittest.TestCase):
         # If no bookmarked version then it should generate a timestamp
         state = _get_resource_from_json('state-with-bookmark-with-version.json')
         sync.send_activate_version_message(state, 'dummy_topic')
-        self.assertEqual(singer_messages, [
+        self.assertListEqual(singer_messages, [
             {
                 'stream': 'dummy_topic',
                 'type': 'ACTIVATE_VERSION',
@@ -467,7 +499,7 @@ class TestSync(unittest.TestCase):
         state = _get_resource_from_json('state-with-bookmark.json')
         sync.send_activate_version_message(state, 'dummy_topic')
         self.assertGreaterEqual(singer_messages[0]['version'], now)
-        self.assertEqual(singer_messages, [
+        self.assertListEqual(singer_messages, [
             {
                 'stream': 'dummy_topic',
                 'type': 'ACTIVATE_VERSION',
@@ -488,7 +520,7 @@ class TestSync(unittest.TestCase):
         stream = streams[topic_pos]
 
         sync.send_schema_message(stream)
-        self.assertEqual(singer_messages, [
+        self.assertListEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': 'dummy_topic',
@@ -512,11 +544,16 @@ class TestSync(unittest.TestCase):
         input_state = {}
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=1234,
                                            partition=0)
-        self.assertEqual(sync.update_bookmark(input_state, topic, message),
-            {'bookmarks': {'test-topic': {'partition_0': {'partition': 0, 'offset': 1234, 'timestamp': 123456789}}}})
+        self.assertDictEqual(sync.update_bookmark(input_state, topic, message),
+            {'bookmarks': {'test-topic': {'partition_0': {
+                'partition': 0,
+                'offset': 1234,
+                'start_time': '2009-02-13T23:31:30.123',
+                'timestamp': 1234567890123
+            }}}})
 
     def test_update_bookmark__update_stream(self):
         """Updating existing bookmark in state should update at every property"""
@@ -526,14 +563,68 @@ class TestSync(unittest.TestCase):
                                                                             'timestamp': 111}}}}
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 999999999),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=999,
                                            partition=0)
 
-        self.assertEqual(sync.update_bookmark(input_state, topic, message),
-                         {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
-                                                                               'offset': 999,
-                                                                               'timestamp': 999999999}}}})
+        self.assertDictEqual(sync.update_bookmark(input_state, topic, message),
+            {'bookmarks': {'test-topic-updated': {'partition_0': {
+                'partition': 0,
+                'offset': 999,
+                'start_time': '2009-02-13T23:31:30.123',
+                'timestamp': 1234567890123
+            }}}})
+
+    def test_update_bookmark__comment(self):
+        """Updating existing bookmark in state should update at every property"""
+        topic = 'test-topic-updated'
+        input_state = {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
+                                                                            'offset': 1234,
+                                                                            'timestamp': 111}}}}
+        message = KafkaConsumerMessageMock(topic=topic,
+                                           value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
+                                           offset=111,
+                                           partition=1)
+
+        self.assertDictEqual(sync.update_bookmark(input_state, topic, message, comment=True), {'bookmarks': {'test-topic-updated': {
+                                'partition_0': {
+                                    'partition': 0,
+                                    'offset': 1234,
+                                    'timestamp': 111},
+                                'partition_1': {
+                                    'partition': 1,
+                                    'offset': 111,
+                                    'timestamp': 1234567890123,
+                                    'start_time': '2009-02-13T23:31:30.123',
+                                    '_comment': 'order of precedence : offset, timestamp, start_time; only one will be used'
+                                }}}})
+
+
+    def test_update_bookmark__no_comment(self):
+        """Updating existing bookmark in state should update at every property"""
+        topic = 'test-topic-updated'
+        input_state = {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
+                                                                            'offset': 1234,
+                                                                            'timestamp': 111}}}}
+        message = KafkaConsumerMessageMock(topic=topic,
+                                           value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
+                                           offset=111,
+                                           partition=1)
+
+        self.assertDictEqual(sync.update_bookmark(input_state, topic, message), {'bookmarks': {'test-topic-updated': {
+                                'partition_0': {
+                                    'partition': 0,
+                                    'offset': 1234,
+                                    'timestamp': 111},
+                                'partition_1': {
+                                    'partition': 1,
+                                    'offset': 111,
+                                    'timestamp': 1234567890123,
+                                    'start_time': '2009-02-13T23:31:30.123'
+                                }}}})
+
 
     def test_update_bookmark__add_new_partition(self):
         """Updating existing bookmark in state should update at every property"""
@@ -543,17 +634,22 @@ class TestSync(unittest.TestCase):
                                                                             'timestamp': 111}}}}
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=111,
                                            partition=1)
 
-        self.assertEqual(sync.update_bookmark(input_state, topic, message),
-            {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
-                                                                  'offset': 1234,
-                                                                  'timestamp': 111},
-                                                  'partition_1': {'partition': 1,
-                                                                  'offset': 111,
-                                                                  'timestamp': 123456789}}}})
+        self.assertDictEqual(sync.update_bookmark(input_state, topic, message), {'bookmarks': {'test-topic-updated': {
+                                'partition_0': {
+                                    'partition': 0,
+                                    'offset': 1234,
+                                    'timestamp': 111},
+                                'partition_1': {
+                                    'partition': 1,
+                                    'offset': 111,
+                                    'timestamp': 1234567890123,
+                                    'start_time': '2009-02-13T23:31:30.123'
+                                }}}})
+
 
     def test_update_bookmark__update_partition(self):
         """Updating existing bookmark in state should update at every property"""
@@ -566,17 +662,22 @@ class TestSync(unittest.TestCase):
                                                                             'timestamp': 111}}}}
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=111,
                                            partition=1)
 
-        self.assertEqual(sync.update_bookmark(input_state, topic, message),
-            {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
-                                                                  'offset': 1234,
-                                                                  'timestamp': 111},
-                                                  'partition_1': {'partition': 1,
-                                                                  'offset': 111,
-                                                                  'timestamp': 123456789}}}})
+        self.assertDictEqual(sync.update_bookmark(input_state, topic, message),{'bookmarks': {'test-topic-updated': {
+                                'partition_0': {
+                                    'partition': 0,
+                                    'offset': 1234,
+                                    'timestamp': 111},
+                                'partition_1': {
+                                    'partition': 1,
+                                    'offset': 111,
+                                    'timestamp': 1234567890123,
+                                    'start_time': '2009-02-13T23:31:30.123'
+                                }}}})
+
 
     def test_update_bookmark__add_new_stream(self):
         """Updating a not existing stream id should be appended to the bookmarks dictionary"""
@@ -588,11 +689,11 @@ class TestSync(unittest.TestCase):
                                                                       'timestamp': 1234}}}}
         message = KafkaConsumerMessageMock(topic='test-topic-1',
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=111,
                                            partition=0)
 
-        self.assertEqual(sync.update_bookmark(input_state, 'test-topic-1', message),
+        self.assertDictEqual(sync.update_bookmark(input_state, 'test-topic-1', message),
             {'bookmarks': {'test-topic-0': {'partition_0': {'partition': 0,
                                                             'offset': 1234,
                                                             'timestamp': 111},
@@ -601,7 +702,9 @@ class TestSync(unittest.TestCase):
                                                             'timestamp': 1234}},
                            'test-topic-1': {'partition_0': {'partition': 0,
                                                             'offset': 111,
-                                                            'timestamp': 123456789}}}})
+                                                            'timestamp': 1234567890123,
+                                                            'start_time': '2009-02-13T23:31:30.123'
+                                }}}})
 
     def test_update_bookmark__not_integer(self):
         """Timestamp in the bookmark should be auto-converted to int whenever it's possible"""
@@ -613,13 +716,15 @@ class TestSync(unittest.TestCase):
         # Timestamp should be converted from string to int
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, "123456789"),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, "1234567890123"),
                                            offset=111,
                                            partition=0)
-        self.assertEqual(sync.update_bookmark(input_state, topic, message),
+        self.assertDictEqual(sync.update_bookmark(input_state, topic, message),
             {'bookmarks': {'test-topic-updated': {'partition_0': {'partition': 0,
                                                                   'offset': 111,
-                                                                  'timestamp': 123456789}}}})
+                                                                  'timestamp': 1234567890123,
+                                                                  'start_time': '2009-02-13T23:31:30.123'
+                                }}}})
 
         # Timestamp that cannot be converted to int should raise exception
         message = KafkaConsumerMessageMock(topic=topic,
@@ -630,145 +735,6 @@ class TestSync(unittest.TestCase):
         with self.assertRaises(InvalidTimestampException):
             sync.update_bookmark(input_state, topic, message)
 
-    @patch('tap_kafka.sync.commit_consumer_to_bookmarked_state')
-    def test_consuming_records_with_no_state(self, commit_consumer_to_bookmarked_state):
-        """Every consumed kafka message should generate a valid singer RECORD and a STATE messages at the end
-
-        - Kafka commit should be called at least once at the end
-        - STATE should return the last consumed message offset and timestamp per partition"""
-        # Set test inputs
-        state = {}
-        messages = _get_resource_from_json('kafka-messages-from-multiple-partitions.json')
-        kafka_messages = list(map(_dict_to_kafka_message, messages))
-
-        # Run test
-        singer_messages = _read_kafka_topic(self.config, state, kafka_messages)
-        self.assertEqual(singer_messages, [
-            {
-                'type': 'ACTIVATE_VERSION',
-                'stream': 'dummy_topic',
-                'version': singer_messages[0]['version']
-            },
-            {
-                'type': 'RECORD',
-                'stream': 'dummy_topic',
-                'record': {
-                    'message': {'result': 'SUCCESS', 'details': {'id': '1001', 'type': 'TYPE_1', 'profileId': 1234}},
-                    'message_partition': 1,
-                    'message_offset': 1,
-                    'message_timestamp': 1575895711187
-                },
-                'time_extracted': singer_messages[1]['time_extracted']
-            },
-            {
-                'type': 'RECORD',
-                'stream': 'dummy_topic',
-                'record': {
-                    'message': {'result': 'SUCCESS', 'details': {'id': '1002', 'type': 'TYPE_2', 'profileId': 1234}},
-                    'message_partition': 2,
-                    'message_offset': 2,
-                    'message_timestamp': 1575895711188
-                },
-                'time_extracted': singer_messages[2]['time_extracted']
-            },
-            {
-                'type': 'RECORD',
-                'stream': 'dummy_topic',
-                'record': {
-                    'message': {'result': 'SUCCESS', 'details': {'id': '1003', 'type': 'TYPE_3', 'profileId': 1234}},
-                    'message_partition': 2,
-                    'message_offset': 3,
-                    'message_timestamp': 1575895711189
-                },
-                'time_extracted': singer_messages[3]['time_extracted']
-            },
-            {
-                'type': 'STATE',
-                'value': {
-                    'bookmarks': {
-                        'dummy_topic': {'partition_1': {'partition': 1,
-                                                        'offset': 1,
-                                                        'timestamp': 1575895711187},
-                                        'partition_2': {'partition': 2,
-                                                        'offset': 3,
-                                                        'timestamp': 1575895711189}}
-                    }
-                }
-            }
-        ])
-
-        # Kafka commit should be called at least once
-        self.assertGreater(commit_consumer_to_bookmarked_state.call_count, 0)
-
-    @patch('tap_kafka.sync.commit_consumer_to_bookmarked_state')
-    def test_consuming_records_with_state(self, commit_consumer_to_bookmarked_state):
-        """Every consumed kafka message should generate a valid singer RECORD and a STATE messages at the end
-
-        - Kafka commit should be called at least once at the end
-        - STATE should return the last consumed message offset and timestamp per partition"""
-        # Set test inputs
-        state = _get_resource_from_json('state-with-bookmark.json')
-        messages = _get_resource_from_json('kafka-messages-from-multiple-partitions.json')
-        kafka_messages = list(map(_dict_to_kafka_message, messages))
-
-        # Run test
-        consumed_messages = _read_kafka_topic(self.config, state, kafka_messages)
-        self.assertEqual(consumed_messages, [
-            {
-                'type': 'ACTIVATE_VERSION',
-                'stream': 'dummy_topic',
-                'version': consumed_messages[0]['version']
-            },
-            {
-                'type': 'RECORD',
-                'stream': 'dummy_topic',
-                'record': {
-                    'message': {'result': 'SUCCESS', 'details': {'id': '1001', 'type': 'TYPE_1', 'profileId': 1234}},
-                    'message_partition': 1,
-                    'message_offset': 1,
-                    'message_timestamp': 1575895711187
-                },
-                'time_extracted': consumed_messages[1]['time_extracted']
-            },
-            {
-                'type': 'RECORD',
-                'stream': 'dummy_topic',
-                'record': {
-                    'message': {'result': 'SUCCESS', 'details': {'id': '1002', 'type': 'TYPE_2', 'profileId': 1234}},
-                    'message_partition': 2,
-                    'message_offset': 2,
-                    'message_timestamp': 1575895711188
-                },
-                'time_extracted': consumed_messages[2]['time_extracted']
-            },
-            {
-                'type': 'RECORD',
-                'stream': 'dummy_topic',
-                'record': {
-                    'message': {'result': 'SUCCESS', 'details': {'id': '1003', 'type': 'TYPE_3', 'profileId': 1234}},
-                    'message_partition': 2,
-                    'message_offset': 3,
-                    'message_timestamp': 1575895711189
-                },
-                'time_extracted': consumed_messages[3]['time_extracted']
-            },
-            {
-                'type': 'STATE',
-                'value': {
-                    'bookmarks': {
-                        'dummy_topic': {'partition_1': {'partition': 1,
-                                                        'offset': 1,
-                                                        'timestamp': 1575895711187},
-                                        'partition_2': {'partition': 2,
-                                                        'offset': 3,
-                                                        'timestamp': 1575895711189}}
-                    }
-                }
-            }
-        ])
-
-        # Kafka commit should be called at least once
-        self.assertGreater(commit_consumer_to_bookmarked_state.call_count, 0)
 
     def test_kafka_message_to_singer_record(self):
         """Validate if kafka messages converted to singer messages correctly"""
@@ -777,13 +743,13 @@ class TestSync(unittest.TestCase):
         # Converting without custom primary or message key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=1234,
                                            partition=0)
         primary_keys = {}
-        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=False), {
+        self.assertDictEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=False), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-            'message_timestamp': 123456789,
+            'message_timestamp': 1234567890123,
             'message_offset': 1234,
             'message_partition': 0
         })
@@ -791,15 +757,15 @@ class TestSync(unittest.TestCase):
         # Converting with message key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=1234,
                                            partition=0,
                                            key='1')
 
         primary_keys = {}
-        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True), {
+        self.assertDictEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-            'message_timestamp': 123456789,
+            'message_timestamp': 1234567890123,
             'message_offset': 1234,
             'message_partition': 0,
             'message_key': '1'
@@ -808,14 +774,14 @@ class TestSync(unittest.TestCase):
         # Converting with custom primary key and default setting for message key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id'}
-        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True), {
+        self.assertDictEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'id': 1,
-            'message_timestamp': 123456789,
+            'message_timestamp': 1234567890123,
             'message_offset': 1234,
             'message_partition': 0
         })
@@ -823,15 +789,15 @@ class TestSync(unittest.TestCase):
         # Converting with nested and multiple custom primary keys and default setting for message key
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id', 'y': '/data/y'}
-        self.assertEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True), {
+        self.assertDictEqual(sync.kafka_message_to_singer_record(message, primary_keys, use_message_key=True), {
             'message': {'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
             'id': 1,
             'y': 'value-y',
-            'message_timestamp': 123456789,
+            'message_timestamp': 1234567890123,
             'message_offset': 1234,
             'message_partition': 0
         })
@@ -839,7 +805,7 @@ class TestSync(unittest.TestCase):
         # Converting with not existing custom primary keys
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=1234,
                                            partition=0)
         primary_keys = {'id': '/id', 'not-existing-key': '/path/not/exists'}
@@ -850,7 +816,7 @@ class TestSync(unittest.TestCase):
         # Converting without custom PK and absent message key with default settings
         message = KafkaConsumerMessageMock(topic=topic,
                                            value={'id': 1, 'data': {'x': 'value-x', 'y': 'value-y'}},
-                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 123456789),
+                                           timestamp=(confluent_kafka.TIMESTAMP_CREATE_TIME, 1234567890123),
                                            offset=1234,
                                            partition=0)
         primary_keys = {}
@@ -865,88 +831,83 @@ class TestSync(unittest.TestCase):
         # If one partition bookmarked then need to commit one offset
         state = {'bookmarks': {topic: {'partition_0': {'partition': 0,
                                                        'offset': 1234,
-                                                       'timestamp': 123456789}}}}
+                                                       'timestamp': 1234567890123}}}}
         consumer = KafkaConsumerMock(fake_messages=[])
         sync.commit_consumer_to_bookmarked_state(consumer, topic, state)
-        self.assertEqual(consumer.committed_offsets, [
+        self.assertListEqual(consumer.committed_offsets, [
             confluent_kafka.TopicPartition(topic=topic, partition=0, offset=1234)
         ])
 
         # If multiple partitions bookmarked then need to commit every offset
         state = {'bookmarks': {topic: {'partition_0': {'partition': 0,
                                                        'offset': 1234,
-                                                       'timestamp': 123456789},
+                                                       'timestamp': 1234567890123},
                                        'partition_1': {'partition': 1,
                                                        'offset': 2345,
-                                                       'timestamp': 123456789},
+                                                       'timestamp': 1234567890123},
                                        'partition_2': {'partition': 2,
                                                        'offset': 3456,
-                                                       'timestamp': 123456789}
+                                                       'timestamp': 1234567890123}
                                        }}}
         consumer = KafkaConsumerMock(fake_messages=[])
         sync.commit_consumer_to_bookmarked_state(consumer, topic, state)
-        self.assertEqual(consumer.committed_offsets, [
+        self.assertListEqual(consumer.committed_offsets, [
             confluent_kafka.TopicPartition(topic=topic, partition=0, offset=1234),
             confluent_kafka.TopicPartition(topic=topic, partition=1, offset=2345),
             confluent_kafka.TopicPartition(topic=topic, partition=2, offset=3456)
         ])
 
-    def test_bookmarked_partition_to_next_position(self):
+
+    def test_bookmarked_partition_offset(self):
         """Transform a bookmarked partition to a kafka TopicPartition object"""
         topic = 'test_topic'
+        consumer = KafkaConsumerMock(fake_messages=[])
         partition_bookmark = {'partition': 0, 'offset': 1234, 'timestamp': 1638132327000}
 
-        # By default TopicPartition offset needs to be bookmarked timestamp and not offset
-        topic_partition = sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
+        # By default TopicPartition offset needs to be bookmarked offset
+        topic_partition = sync.bookmarked_partition_offset(consumer, topic, partition_bookmark)
         self.assertEqual(topic_partition.topic, topic)
         self.assertEqual(topic_partition.partition, 0)
-        self.assertEqual(topic_partition.offset, 1638132327000)
+        self.assertEqual(topic_partition.offset, 1234)
 
-        # Assigning by timestamp explicitly should behave the same as not providing the assing_by parameter
-        topic_partition = sync.bookmarked_partition_to_next_position(topic, partition_bookmark, assign_by='timestamp')
-        self.assertEqual(topic_partition.topic, topic)
-        self.assertEqual(topic_partition.partition, 0)
-        self.assertEqual(topic_partition.offset, 1638132327000)
+        partition_bookmark = {'partition': 0, 'timestamp': 1638132327000}
 
-        # Assigning by offset should increase the offset by 1, pointing to the next not consumed offset
-        topic_partition = sync.bookmarked_partition_to_next_position(topic, partition_bookmark, assign_by='offset')
+        # Assigning by bookmark without offset should use timestamp to calculate offset
+        topic_partition = sync.bookmarked_partition_offset(consumer, topic, partition_bookmark)
         self.assertEqual(topic_partition.topic, topic)
         self.assertEqual(topic_partition.partition, 0)
-        self.assertEqual(topic_partition.offset, 1235)  # Bookmarked offset +1
+        self.assertEqual(topic_partition.offset, 1234)
+
 
     def test_bookmarked_partition_to_next_position__invalid_options(self):
         """Transform a bookmarked partition to a kafka TopicPartition object"""
         topic = 'test_topic'
+        consumer = KafkaConsumerMock(fake_messages=[])
 
         # Empty bookmark should raise exception
         partition_bookmark = {}
         with self.assertRaises(InvalidBookmarkException):
-            sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
+            sync.bookmarked_partition_offset(consumer, topic, partition_bookmark)
 
         # Partially provided bookmark - no partition
         partition_bookmark = {'offset': 1234, 'timestamp': 1638132327000}
         with self.assertRaises(InvalidBookmarkException):
-            sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
+            sync.bookmarked_partition_offset(consumer, topic, partition_bookmark)
 
         # Should raise an exception if partition is not int
         partition_bookmark = {'partition': '0', 'offset': 1234, 'timestamp': 1638132327000}
         with self.assertRaises(InvalidBookmarkException):
-            sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
-
-        # Should raise an exception if timestamp is not int
-        partition_bookmark = {'partition': 0, 'offset': 1234, 'timestamp': '1638132327000'}
-        with self.assertRaises(InvalidBookmarkException):
-            sync.bookmarked_partition_to_next_position(topic, partition_bookmark)
+            sync.bookmarked_partition_offset(consumer, topic, partition_bookmark)
 
         # Should raise an exception if offset is not int
         partition_bookmark = {'partition': 0, 'offset': '1234', 'timestamp': 1638132327000}
         with self.assertRaises(InvalidBookmarkException):
-            sync.bookmarked_partition_to_next_position(topic, partition_bookmark, assign_by='offset')
+            sync.bookmarked_partition_offset(consumer, topic, partition_bookmark)
 
-        # Assigning by invalid option
-        partition_bookmark = {'partition': 0, 'offset': 1234, 'timestamp': 1638132327000}
-        with self.assertRaises(InvalidAssignByKeyException):
-            sync.bookmarked_partition_to_next_position(topic, partition_bookmark, assign_by='invalid-option')
+        # Should raise an exception if start_time is not ISO timestamp
+        partition_bookmark = {'partition': 0, 'start_time': 'not-ISO-sorry'}
+        with self.assertRaises(InvalidTimestampException):
+            sync.bookmarked_partition_offset(consumer, topic, partition_bookmark)
 
     def test_do_disovery_failure(self):
         """Validate if kafka messages converted to singer messages correctly"""
@@ -961,38 +922,6 @@ class TestSync(unittest.TestCase):
         with self.assertRaises(DiscoveryException):
             tap_kafka.do_discovery(config)
 
-    def test_get_timestamp_from_timestamp_tuple(self):
-        """Validate if the actual timestamp can be extracted from a kafka timestamp"""
-        # Timestamps as tuples
-        self.assertEqual(sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 1234)), 1234)
-        self.assertEqual(sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_LOG_APPEND_TIME, 1234)), 1234)
-
-        # Timestamp not available
-        with self.assertRaises(TimestampNotAvailableException):
-            sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_NOT_AVAILABLE, 1234))
-
-        # Invalid timestamp type
-        with self.assertRaises(InvalidTimestampException):
-            sync.get_timestamp_from_timestamp_tuple(([confluent_kafka.TIMESTAMP_CREATE_TIME, 1234], 1234))
-
-        # Invalid timestamp type
-        with self.assertRaises(InvalidTimestampException):
-            sync.get_timestamp_from_timestamp_tuple((9999, 1234))
-
-        # Invalid timestamp type
-        with self.assertRaises(InvalidTimestampException):
-            sync.get_timestamp_from_timestamp_tuple("not_a_tuple_or_list")
-
-    def test_initial_start_time_to_offset_reset(self):
-        """Initial start time can be one of 'latest', 'earliest' or an ISO timestamp"""
-        # Earliest should return earliest
-        self.assertEqual(sync.initial_start_time_to_offset_reset('earliest'), 'earliest')
-
-        # Anything else should return latest. Every string, ISO timestamps or non string values
-        self.assertEqual(sync.initial_start_time_to_offset_reset('latest'), 'latest')
-        self.assertEqual(sync.initial_start_time_to_offset_reset('2021-11-01 16:00:30'), 'latest')
-        self.assertEqual(sync.initial_start_time_to_offset_reset(None), 'latest')
-        self.assertEqual(sync.initial_start_time_to_offset_reset(1234), 'latest')
 
     def test_iso_timestamp_to_epoch(self):
         """Validate converting ISO timestamps to epoch milliseconds"""
@@ -1016,46 +945,50 @@ class TestSync(unittest.TestCase):
         with self.assertRaises(InvalidTimestampException):
             sync.iso_timestamp_to_epoch('invalid-timestamp')
 
-    @patch('tap_kafka.sync.assign_consumer_to_bookmarked_state')
-    @patch('tap_kafka.sync.assign_consumer_to_timestamp')
-    def test_assign_consumer(self, assign_consumer_to_timestamp, assign_consumer_to_bookmarked_state):
-        consumer = KafkaConsumerMock([])
+    def test_epoch_to_iso_timestamp(self):
+        """Validate converting epoch milliseconds to ISO timestamp"""
+        self.assertEqual(sync.epoch_to_iso_timestamp(1635807671000),'2021-11-01T23:01:11.000')
+        self.assertEqual(sync.epoch_to_iso_timestamp(1635807671123),'2021-11-01T23:01:11.123')
 
-        # Should not assign if both state and initial_start_time are empty
-        sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time=None)
-        self.assertEqual(assign_consumer_to_timestamp.call_count, 0)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 0)
+        # Invalid epoch should raise exception
+        with self.assertRaises(InvalidTimestampException):
+            sync.epoch_to_iso_timestamp(None)
 
-        # Should not assign if state is empty and initial_start_time is the reserved 'latest'
-        sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='latest')
-        self.assertEqual(assign_consumer_to_timestamp.call_count, 0)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 0)
+        # Invalid epoch should raise exception
+        with self.assertRaises(InvalidTimestampException):
+            sync.epoch_to_iso_timestamp('sss')
 
-        # Should not assign if state is empty and initial_start_time is the reserved 'earliest'
-        sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='earliest')
-        self.assertEqual(assign_consumer_to_timestamp.call_count, 0)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 0)
+        # too short epoch should raise exception
+        with self.assertRaises(InvalidTimestampException):
+            sync.epoch_to_iso_timestamp(163580767100)
 
-        # Should assign by timestamp if state not provided and initial_start_time is an ISO 8601 timestamp
-        sync.assign_consumer(consumer, topic='test-topic', state={}, initial_start_time='2021-11-01 12:00:00')
-        self.assertEqual(assign_consumer_to_timestamp.call_count, 1)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 0)
+        # too long epoch should raise exception
+        # If someone is fixing this on 'Sat, 20 Nov 2286 17:46:40 GMT', I'm sorry, but also a very proud ghost.
+        with self.assertRaises(InvalidTimestampException):
+            sync.epoch_to_iso_timestamp(16358076710000)
 
-        # Should assign by bookmark if bookmark provided
-        sync.assign_consumer(consumer, topic='test-topic', state={'bmrk': []}, initial_start_time=None)
-        self.assertEqual(assign_consumer_to_timestamp.call_count, 1)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 1)
 
-        # Should assign by bookmark if both state and initial_start_time are provided
-        sync.assign_consumer(consumer, topic='test-topic', state={'bmrk': []}, initial_start_time='2021-11-01 12:00:00')
-        self.assertEqual(assign_consumer_to_timestamp.call_count, 1)
-        self.assertEqual(assign_consumer_to_bookmarked_state.call_count, 2)
+    def test_get_timestamp_from_timestamp_tuple(self):
+        """Validate if the actual timestamp can be extracted from a kafka timestamp"""
+        # Timestamps as tuples
+        self.assertEqual(sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_CREATE_TIME, 1234)), 1234)
+        self.assertEqual(sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_LOG_APPEND_TIME, 1234)), 1234)
 
-    def test_seek_partitions(self):
-        # TODO: This is just a fake unit test to reach the coverage limit, please complete it!
-        consumer = KafkaConsumerMock([])
-        sync.seek_partitions(consumer, [])
+        # Timestamp not available
+        with self.assertRaises(TimestampNotAvailableException):
+            sync.get_timestamp_from_timestamp_tuple((confluent_kafka.TIMESTAMP_NOT_AVAILABLE, 1234))
 
+        # Invalid timestamp type
+        with self.assertRaises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple(([confluent_kafka.TIMESTAMP_CREATE_TIME, 1234], 1234))
+
+        # Invalid timestamp type
+        with self.assertRaises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple((9999, 1234))
+
+        # Invalid timestamp type
+        with self.assertRaises(InvalidTimestampException):
+            sync.get_timestamp_from_timestamp_tuple("not_a_tuple_or_list")
 
 if __name__ == '__main__':
     unittest.main()

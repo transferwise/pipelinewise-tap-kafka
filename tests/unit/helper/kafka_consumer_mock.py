@@ -1,4 +1,5 @@
 import os
+import confluent_kafka
 
 class KafkaConsumerMessageMock:
     def __init__(self, topic, value, timestamp=None, key=None, timestamp_type=0, partition=0, offset=1, headers=None,
@@ -76,3 +77,9 @@ class KafkaConsumerMock(object):
     def commit(self, offsets=None):
         if offsets:
             self.committed_offsets = offsets
+
+    def offsets_for_times(self, topic_partitions):
+        if topic_partitions[0].offset == 1638132327000:
+            topic_partitions[0].offset = 1234
+
+        return topic_partitions

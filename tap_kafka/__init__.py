@@ -21,6 +21,7 @@ REQUIRED_CONFIG_KEYS = [
 ]
 
 DEFAULT_INITIAL_START_TIME = 'latest'
+DEFAULT_PARTITIONS = []
 DEFAULT_MAX_RUNTIME_MS = 300000
 DEFAULT_COMMIT_INTERVAL_MS = 5000
 DEFAULT_CONSUMER_TIMEOUT_MS = 10000
@@ -80,15 +81,17 @@ def validate_config(config) -> None:
             raise InvalidConfigException(f'Invalid config. {required_key} not found in config.')
 
     initial_start_time = config.get('initial_start_time')
-    if initial_start_time and initial_start_time not in ['latest', 'earliest']:
+    if initial_start_time and initial_start_time not in ['beginning', 'latest', 'earliest']:
         try:
             sync.iso_timestamp_to_epoch(config.get('initial_start_time'))
         except InvalidTimestampException:
-            raise InvalidConfigException("Invalid config. initial_start_time needs to be one of 'earliest', "
-                                         "'latest' or a valid ISO-8601 formatted timestamp string")
+            raise InvalidConfigException("Invalid config. initial_start_time needs to be one of 'beginning', 'earliest', 'latest' or an ISO-8601 formatted timestamp string")
+
+    if not isinstance(config.get('partitions'), list):
+        raise InvalidConfigException(f"Invalid config. 'partitions' must be a python 'list', not a {type(config.get('partitions'))}")
 
     if config.get('message_format') not in ['json', 'protobuf']:
-        raise InvalidConfigException("Invalid config. message_format needs to be one of 'json' or 'protobuf'")
+        raise InvalidConfigException("Invalid config. 'message_format' needs to be one of 'json' or 'protobuf'")
 
     if config.get('message_format') == 'protobuf' and not config.get('proto_schema'):
         raise InvalidConfigException("Invalid config. Cannot find required proto_schema for protobuf message type")
@@ -105,6 +108,7 @@ def generate_config(args_config):
         'primary_keys': args_config.get('primary_keys', {}),
         'use_message_key': args_config.get('use_message_key', True),
         'initial_start_time': args_config.get('initial_start_time', DEFAULT_INITIAL_START_TIME),
+        'partitions': args_config.get('partitions', DEFAULT_PARTITIONS),
         'max_runtime_ms': args_config.get('max_runtime_ms', DEFAULT_MAX_RUNTIME_MS),
         'commit_interval_ms': args_config.get('commit_interval_ms', DEFAULT_COMMIT_INTERVAL_MS),
         'consumer_timeout_ms': args_config.get('consumer_timeout_ms', DEFAULT_CONSUMER_TIMEOUT_MS),

@@ -3,6 +3,7 @@ import time
 import copy
 import dpath.util
 import dateutil
+import datetime
 
 import singer
 import confluent_kafka
@@ -15,7 +16,6 @@ from tap_kafka.errors import InvalidBookmarkException
 from tap_kafka.errors import InvalidConfigException
 from tap_kafka.errors import InvalidTimestampException
 from tap_kafka.errors import TimestampNotAvailableException
-from tap_kafka.errors import InvalidAssignByKeyException
 from tap_kafka.errors import PrimaryKeyNotFoundException
 from tap_kafka.serialization.json_with_no_schema import JSONSimpleDeserializer
 from tap_kafka.serialization.protobuf import ProtobufDictDeserializer
@@ -77,21 +77,20 @@ def send_schema_message(stream):
         key_properties=pks))
 
 
-def update_bookmark(state, topic, message):
+def update_bookmark(state, topic, message, comment = False):
     """Update bookmark with a new timestamp"""
-    return singer.write_bookmark(state,
-                                 topic,
-                                 f'partition_{message.partition()}',
-                                 {
-                                     'partition': message.partition(),
-                                     'offset': message.offset(),
-                                     'timestamp': get_timestamp_from_timestamp_tuple(message.timestamp())
-                                 })
 
+    bookmark_key = f'partition_{message.partition()}'
+    bookmark_value = {
+        'partition': message.partition(),
+        'offset': message.offset(),
+        'timestamp': get_timestamp_from_timestamp_tuple(message.timestamp()),
+        'start_time': epoch_to_iso_timestamp(get_timestamp_from_timestamp_tuple(message.timestamp()))
+    }
 
-def initial_start_time_to_offset_reset(initial_start_time: str) -> str:
-    """Convert initial_start_time to corresponding kafka auto_offset_reset"""
-    return 'earliest' if initial_start_time == 'earliest' else 'latest'
+    if comment : bookmark_value['_comment'] = 'order of precedence : offset, timestamp, start_time; only one will be used'
+
+    return singer.write_bookmark(state, topic, bookmark_key, bookmark_value)
 
 
 def iso_timestamp_to_epoch(iso_timestamp: str) -> int:
@@ -99,36 +98,23 @@ def iso_timestamp_to_epoch(iso_timestamp: str) -> int:
     try:
         return int(dateutil.parser.parse(iso_timestamp).timestamp() * 1000)
     except dateutil.parser.ParserError:
-        raise InvalidTimestampException(f'{iso_timestamp} is not a valid ISO formatted string.')
+        raise InvalidTimestampException(f'{iso_timestamp} is not a valid ISO formatted string')
 
 
-def assign_consumer(consumer, topic: str, state: dict, initial_start_time: str) -> None:
-    """Assign consumer to the right position where we need to start consuming data from
+def epoch_to_iso_timestamp(epoch) -> str:
+    """Convert an epoch to an ISO 8601 formatted string"""
+    if len(str(epoch)) != 13 or type(epoch) != int:
+        raise InvalidTimestampException(f'{epoch} is not a valid millisecond epoch integer')
 
-    * If state exists then assign each partition to the positions in the state
-    * If state is empty and the initial_start_time is a timestamp and not a reserved word
-      then assign each partition to the offsets at the provided timestamp.
-    * Otherwise do not assign"""
-    if state:
-        assign_consumer_to_bookmarked_state(consumer, topic, state)
-    elif initial_start_time is not None and initial_start_time not in ['latest', 'earliest']:
-        assign_consumer_to_timestamp(consumer, topic, initial_start_time)
+    return datetime.datetime.utcfromtimestamp(epoch / 1000).isoformat(timespec='milliseconds')
 
 
-def error_callback(error: KafkaError):
-    if error.code() == KafkaError._ALL_BROKERS_DOWN:
-        raise AllBrokersDownException('All kafka brokers are down')
-
-
-def init_kafka_consumer(kafka_config, state, value_deserializer):
+def init_kafka_consumer(kafka_config):
     LOGGER.info('Initialising Kafka Consumer...')
-    topic = kafka_config['topic']
-    initial_start_time = kafka_config['initial_start_time']
     consumer = confluent_kafka.DeserializingConsumer({
         # Required parameters
         'bootstrap.servers': kafka_config['bootstrap_servers'],
         'group.id': kafka_config['group_id'],
-        'error_cb': error_callback,
 
         # Optional parameters
         'session.timeout.ms': kafka_config['session_timeout_ms'],
@@ -137,12 +123,8 @@ def init_kafka_consumer(kafka_config, state, value_deserializer):
 
         # Non-configurable parameters
         'enable.auto.commit': False,
-        'auto.offset.reset': initial_start_time_to_offset_reset(initial_start_time),
-        'value.deserializer': value_deserializer,
+        'value.deserializer': init_value_deserializer(kafka_config),
     })
-
-    consumer.subscribe([topic])
-    assign_consumer(consumer, topic, state, initial_start_time)
 
     return consumer
 
@@ -207,65 +189,130 @@ def consume_kafka_message(message, topic, primary_keys, use_message_key):
     singer.write_message(singer.RecordMessage(stream=topic, record=singer_record, time_extracted=utils.now()))
 
 
-def bookmarked_partition_to_next_position(topic: str,
-                                          partition_bookmark: dict,
-                                          assign_by: str = 'timestamp') -> confluent_kafka.TopicPartition:
-    """Transform a bookmarked partition to a kafka TopicPartition object"""
-    try:
-        if assign_by == 'timestamp':
-            assign_to = partition_bookmark['timestamp']
-        elif assign_by == 'offset':
-            assign_to = partition_bookmark['offset'] + 1
-        else:
-            raise InvalidAssignByKeyException(f"Cannot set the consumer assignment by '{assign_by}'")
+def select_kafka_partitions(consumer, kafka_config) -> confluent_kafka.TopicPartition:
+    """Select partitions in topic"""
 
-        return confluent_kafka.TopicPartition(topic, partition_bookmark['partition'], assign_to)
-    except KeyError:
-        raise InvalidBookmarkException(f"Invalid bookmark. Bookmark does not include 'partition' or '{assign_by}' "
-                                       f"key(s).")
+    topic = kafka_config['topic']
+    partition_ids_requested = kafka_config['partitions']
+
+    try:
+        topic_meta = consumer.list_topics(topic, timeout=kafka_config['max_poll_interval_ms'] / 1000)
+        partition_meta = topic_meta.topics[topic].partitions
+    except:
+        raise AllBrokersDownException
+
+    if not partition_meta:
+        raise InvalidConfigException(f"No partitions available in topic '{topic}'")
+
+    # Get list of all partitions in topic
+    partition_ids_available = []
+    for partition in partition_meta:
+        partition_ids_available.append(partition)
+
+    if partition_ids_requested == []:
+        partition_ids = partition_ids_available
+        LOGGER.info(f"Requesting all partitions in topic '{topic}'")
+    else:
+        LOGGER.info(f"Requesting partitions {partition_ids_requested} in topic '{topic}'")
+        partition_ids = list(set(partition_ids_requested).intersection(partition_ids_available))
+        partition_ids_not_available = list(set(partition_ids_requested).difference(partition_ids_available))
+        if partition_ids_not_available: LOGGER.warning(f"Partitions {partition_ids_not_available} not available in topic '{topic}'")
+
+    LOGGER.info(f"Selecting partitions {partition_ids} in topic '{topic}'")
+
+    partitions = []
+    for partition_id in partition_ids:
+        partitions.append(confluent_kafka.TopicPartition(topic, partition_id))
+
+    return partitions
+
+
+def bookmarked_partition_offset(consumer, topic: str, partition_bookmark: dict) -> confluent_kafka.TopicPartition:
+    """Transform a bookmarked partition to a kafka TopicPartition object"""
+
+    try:
+        if 'offset' in partition_bookmark:
+            LOGGER.info(f"Partition [{partition_bookmark['partition']}] found in bookmark - setting offset to '{partition_bookmark['offset']}'")
+            partition = confluent_kafka.TopicPartition(topic, partition_bookmark['partition'], partition_bookmark['offset'])
+        elif 'timestamp' in partition_bookmark:
+            epoch = partition_bookmark['timestamp']
+            iso_timestamp = epoch_to_iso_timestamp(epoch)
+            LOGGER.info(f"Partition [{partition_bookmark['partition']}] found in bookmark - setting offset to timestamp '{epoch}' ({iso_timestamp})")
+            partition = confluent_kafka.TopicPartition(topic, partition_bookmark['partition'], epoch)
+            partition = consumer.offsets_for_times([partition])[0]
+        elif 'start_time' in partition_bookmark:
+            start_time = partition_bookmark['start_time']
+            epoch = iso_timestamp_to_epoch(start_time)
+            LOGGER.info(f"Partition [{partition_bookmark['partition']}] found in bookmark - setting offset to start_time '{start_time}' ({epoch})")
+            partition = confluent_kafka.TopicPartition(topic, partition_bookmark['partition'], epoch)
+            partition = consumer.offsets_for_times([partition])[0]
+        else:
+            raise InvalidBookmarkException(f"Invalid bookmark. Bookmark does not include 'partition' and ('offset' or 'timestamp') keys.")
     except TypeError:
         raise InvalidBookmarkException(f"Invalid bookmark. One or more bookmark entries using invalid type(s).")
+    except KeyError:
+        raise InvalidBookmarkException(f"Invalid bookmark. One or more bookmark entries using invalid type(s).")
+
+    return partition
 
 
-def seek_partitions(consumer, partitions):
-    """Seek partitions to offsets"""
+def set_partition_offsets(consumer, partitions, kafka_config, state = {}):
+    """Setting offsets to bookmarked state"""
+    LOGGER.info(f"Setting offsets to bookmarked state")
 
-    LOGGER.info(f"Seek Partitions to Offsets {partitions}")
+    topic = kafka_config['topic']
+    initial_start_time = kafka_config['initial_start_time']
+
+    if state:
+        bookmarked_partitions = state['bookmarks'][topic]
+    else:
+        bookmarked_partitions = {}
+
+    partitions_to_set = []
+
     for partition in partitions:
-        consumer.seek(partition)
+        found_in_bookmark = False
+        for bookmark in bookmarked_partitions:
+            if partition.partition == bookmarked_partitions[bookmark]['partition']:
+                partition = bookmarked_partition_offset(consumer, topic, bookmarked_partitions[bookmark])
+                found_in_bookmark = True
+
+        if not found_in_bookmark:
+            if initial_start_time == 'beginning':
+                LOGGER.info(f"Partition [{partition.partition}] not found in bookmark - setting offset to 'beginning'")
+                partition.offset = consumer.get_watermark_offsets(partition)[0]
+            elif initial_start_time == 'earliest':
+                LOGGER.info(f"Partition [{partition.partition}] not found in bookmark - setting offset to 'earliest'")
+                partition = consumer.committed([partition])[0]
+                partition.offset = max(partition.offset, consumer.get_watermark_offsets(partition)[0])
+            elif initial_start_time == 'latest':
+                LOGGER.info(f"Partition [{partition.partition}] not found in bookmark - setting offset to 'latest'")
+                partition.offset = consumer.get_watermark_offsets(partition)[1] - 1
+            elif initial_start_time is not None:
+                epoch = iso_timestamp_to_epoch(initial_start_time)
+                LOGGER.info(f"Partition [{partition.partition}] not found in bookmark - setting offset to initial_start_time '{initial_start_time}' ({epoch})")
+                partition.offset = epoch
+                partition = consumer.offsets_for_times([partition])[0]
+                partition.offset = max(partition.offset, consumer.get_watermark_offsets(partition)[0])
+
+        partitions_to_set.append(partition)
+
+    return partitions_to_set
 
 
-def assign_consumer_to_timestamp(consumer, topic: str, timestamp: str, timeout: int = 30) -> None:
-    """Assign consumer topic of all partitions to given timestamp"""
-    # Get list of all partitions
-    cluster_md = consumer.list_topics(topic=topic, timeout=timeout)
-    topic_md = cluster_md.topics[topic]
-    partitions = topic_md.partitions
+def assign_kafka_partitions(consumer, partitions):
+    """Assign and seek partitions to offsets"""
+    LOGGER.info(f"Assigning partitions '{partitions}'")
 
-    # Find the offset of partitions by timestamps
-    epoch = iso_timestamp_to_epoch(timestamp)
-    partitions_list = [confluent_kafka.TopicPartition(topic, p, epoch) for p in partitions]
-    partitions_to_assign = consumer.offsets_for_times(partitions_list)
+    consumer.assign(partitions)
 
-    # Assign to the correct position
-    consumer.assign(partitions_to_assign)
+    partitions_committed = partitions
+    for partition in partitions_committed:
+        partition.offset = partition.offset - 1
 
-    seek_partitions(consumer, partitions_to_assign)
-
-
-def assign_consumer_to_bookmarked_state(consumer, topic: str, state, assign_by: str = 'timestamp') -> None:
-    """Assign consumer to bookmarked positions"""
-    bookmarked_partitions = state['bookmarks'][topic]
-    partitions_to_assign = [bookmarked_partition_to_next_position(topic,
-                                                                  bookmarked_partitions[p],
-                                                                  assign_by=assign_by) for p in bookmarked_partitions]
-    # Translate timestamps to offsets if located by timestamp
-    if partitions_to_assign and assign_by == 'timestamp':
-        partitions_to_assign = consumer.offsets_for_times(partitions_to_assign)
-
-    consumer.assign(partitions_to_assign)
-
-    seek_partitions(consumer, partitions_to_assign)
+    if all(partition.offset >= 0 for partition in partitions_committed):
+        LOGGER.info(f"Committing partitions '{partitions_committed}'")
+        consumer.commit(offsets=partitions_committed)
 
 
 def commit_consumer_to_bookmarked_state(consumer, topic, state):
@@ -283,7 +330,7 @@ def commit_consumer_to_bookmarked_state(consumer, topic, state):
 
 
 # pylint: disable=too-many-locals,too-many-statements
-def read_kafka_topic(consumer, kafka_config, state):
+def read_kafka_messages(consumer, kafka_config, state):
     """Read kafka topic continuously and writing transformed singer messages to STDOUT"""
     topic = kafka_config['topic']
     primary_keys = kafka_config['primary_keys']
@@ -325,7 +372,7 @@ def read_kafka_topic(consumer, kafka_config, state):
         consume_kafka_message(message, topic, primary_keys, use_message_key)
 
         # Update bookmark after every consumed message
-        state = update_bookmark(state, topic, message)
+        state = update_bookmark(state, topic, message, comment=True)
 
         now = time.time()
         # Commit periodically
@@ -352,7 +399,7 @@ def read_kafka_topic(consumer, kafka_config, state):
 
     # Update bookmark and send state at the last time
     if message:
-        state = update_bookmark(state, topic, message)
+        state = update_bookmark(state, topic, message, comment=True)
         singer.write_message(singer.StateMessage(value=copy.deepcopy(state)))
         commit_consumer_to_bookmarked_state(consumer, topic, state)
 
@@ -364,14 +411,21 @@ def do_sync(kafka_config, catalog, state):
     # Only one stream
     streams = catalog.get('streams', [])
     topic_pos = search_in_list_of_dict_by_key_value(streams, 'tap_stream_id', topic)
-    value_deserializer = init_value_deserializer(kafka_config)
 
     if topic_pos != -1:
         # Send the initial schema message
         send_schema_message(streams[topic_pos])
 
-        # Start consuming new messages from kafka
-        consumer = init_kafka_consumer(kafka_config, state, value_deserializer)
-        read_kafka_topic(consumer, kafka_config, state)
+        # Setup consumer
+        consumer = init_kafka_consumer(kafka_config)
+
+        partitions = select_kafka_partitions(consumer, kafka_config)
+
+        partitions = set_partition_offsets(consumer, partitions, kafka_config, state)
+
+        assign_kafka_partitions(consumer, partitions)
+
+        # Start consuming messages from kafka
+        read_kafka_messages(consumer, kafka_config, state)
     else:
         raise Exception(f'Invalid catalog object. Cannot find {topic} in catalog')
