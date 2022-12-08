@@ -69,7 +69,8 @@ class TestProtobuf(unittest.TestCase):
             'bootstrap_servers': kafka_config['bootstrap_servers'],
             'topic': topic,
             'group_id': test_utils.generate_unique_consumer_group(),
-            'initial_start_time': 'earliest',
+            'consumer_timeout_ms': 1000,
+            'initial_start_time': 'beginning',
 
             # set protobuf message_format and proto_schema
             'message_format': 'protobuf',
@@ -81,8 +82,9 @@ class TestProtobuf(unittest.TestCase):
         singer_messages = []
         singer.write_message = lambda m: singer_messages.append(m.asdict())
 
-        sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
-        self.assertEqual(singer_messages, [
+        sync.do_sync(tap_kafka_config, catalog, state={})
+        self.assertEqual(len(singer_messages), 6)
+        self.assertListEqual(singer_messages, [
             {
                 'type': 'SCHEMA',
                 'stream': topic,

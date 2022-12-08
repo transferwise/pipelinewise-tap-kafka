@@ -1,7 +1,7 @@
 version: '3.9'
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:5.5.2
+    image: confluentinc/cp-zookeeper:7.3.0
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -11,7 +11,7 @@ services:
       - tap_kafka_network
 
   kafka:
-    image: confluentinc/cp-kafka:5.5.2
+    image: confluentinc/cp-kafka:7.3.0
     depends_on:
       - zookeeper
     ports:
@@ -27,7 +27,7 @@ services:
       - tap_kafka_network
 
   schema_registry:
-    image: confluentinc/cp-schema-registry:5.5.2
+    image: confluentinc/cp-schema-registry:7.3.0
     depends_on:
       - zookeeper
       - kafka

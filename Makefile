@@ -4,10 +4,13 @@ KAFKA_PORT = 29092
 SCHEMA_REGISTRY_PORT = 8081
 
 .run_pytest_unit:
-	@$(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=78 tests/unit -v
+	@$(VENV_DIR)/bin/pytest --verbose --cov=tap_kafka --cov-fail-under=80 --cov-report term-missing tests/unit
 
 .run_pytest_integration:
-	@TAP_KAFKA_BOOTSTRAP_SERVERS=localhost:${KAFKA_PORT} $(VENV_DIR)/bin/pytest --cov=tap_kafka  --cov-fail-under=79 tests/integration -v
+	@TAP_KAFKA_BOOTSTRAP_SERVERS=localhost:${KAFKA_PORT} $(VENV_DIR)/bin/pytest --verbose --cov=tap_kafka --cov-fail-under=80 --cov-report term-missing tests/integration
+
+.run_pytest_all:
+	@TAP_KAFKA_BOOTSTRAP_SERVERS=localhost:${KAFKA_PORT} $(VENV_DIR)/bin/pytest --verbose --cov=tap_kafka --cov-fail-under=80 --cov-report term-missing tests/
 
 virtual_env:
 	@echo "Making Virtual Environment in $(VENV_DIR)..."
@@ -41,3 +44,5 @@ lint: virtual_env
 unit_test: virtual_env .run_pytest_unit
 
 integration_test: virtual_env start_containers .run_pytest_integration clean_containers
+
+all_test: virtual_env start_containers .run_pytest_all clean_containers
