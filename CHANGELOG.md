@@ -1,3 +1,8 @@
+8.0.0 (2022-12-08)
+------------------
+- Switch from `subscribe` to `assign` for better initial offset control
+- Implement specifying partitions in configuration
+
 7.1.1 (2022-10-18)
 ------------------
 - Introducing the use of the `seek` method to reset the source partition offsets at the start of a run
