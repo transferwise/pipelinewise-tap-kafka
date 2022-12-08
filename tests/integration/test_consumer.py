@@ -600,7 +600,7 @@ class TestKafkaConsumer(unittest.TestCase):
             sync.select_kafka_partitions(consumer, tap_kafka_config)
 
 
-        # Create topic of selection tests
+        # Create topic with 3 partitions for selection tests
         topic = test_utils.create_topic(tap_kafka_config['bootstrap_servers'], 'test-topic-select', num_partitions=3)
 
 
@@ -613,6 +613,23 @@ class TestKafkaConsumer(unittest.TestCase):
             'session_timeout_ms': 1000,
             'max_poll_interval_ms': 1000,
             'initial_start_time': 'beginning'
+        })
+        consumer = sync.init_kafka_consumer(tap_kafka_config)
+        partitions = sync.select_kafka_partitions(consumer, tap_kafka_config)
+
+        self.assertEqual(len(partitions), 3)
+
+
+        # Empty selection Should return all 3 partitions
+        tap_kafka_config = tap_kafka.generate_config({
+            'bootstrap_servers': tap_kafka_config['bootstrap_servers'],
+            'topic': topic,
+            'group_id': test_utils.generate_unique_consumer_group(),
+            'consumer_timeout_ms': 1000,
+            'session_timeout_ms': 1000,
+            'max_poll_interval_ms': 1000,
+            'initial_start_time': 'beginning',
+            'partitions': []
         })
         consumer = sync.init_kafka_consumer(tap_kafka_config)
         partitions = sync.select_kafka_partitions(consumer, tap_kafka_config)
