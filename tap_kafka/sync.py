@@ -258,7 +258,6 @@ def bookmarked_partition_offset(consumer, topic: str, partition_bookmark: dict) 
 
 def set_partition_offsets(consumer, partitions, kafka_config, state = {}):
     """Setting offsets to bookmarked state"""
-    LOGGER.info(f"Setting offsets to bookmarked state")
 
     topic = kafka_config['topic']
     initial_start_time = kafka_config['initial_start_time']
