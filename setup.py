@@ -19,7 +19,7 @@ setup(name='pipelinewise-tap-kafka',
       install_requires=[
           'pipelinewise-singer-python==2.*',
           'dpath==2.0.6',
-          'confluent-kafka[protobuf]==1.9.2',
+          'confluent-kafka[protobuf]==2.1.1',
           'grpcio-tools==1.51.1'
       ],
       extras_require={
