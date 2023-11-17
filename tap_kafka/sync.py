@@ -221,7 +221,7 @@ def select_kafka_partitions(consumer, kafka_config) -> List[confluent_kafka.Topi
     for partition in partition_meta:
         partition_ids_available.append(partition)
 
-    if partition_ids_requested == []:
+    if not partition_ids_requested:
         partition_ids = partition_ids_available
         LOGGER.info(f"Requesting all partitions in topic '{topic}'")
     else:
