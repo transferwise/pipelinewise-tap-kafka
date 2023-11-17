@@ -8,7 +8,8 @@ import datetime
 import singer
 import confluent_kafka
 
-from confluent_kafka import KafkaError
+from confluent_kafka import KafkaException
+from typing import List
 
 from singer import utils, metadata
 from tap_kafka.errors import AllBrokersDownException
@@ -192,14 +193,17 @@ def consume_kafka_message(message, topic, primary_keys, use_message_key):
 def select_kafka_partitions(consumer, kafka_config) -> List[confluent_kafka.TopicPartition]:
     """Select partitions in topic"""
 
+    LOGGER.info(f"Selecting partitions in topic '{kafka_config['topic']}'")
+
     topic = kafka_config['topic']
     partition_ids_requested = kafka_config['partitions']
 
     try:
         topic_meta = consumer.list_topics(topic, timeout=kafka_config['max_poll_interval_ms'] / 1000)
         partition_meta = topic_meta.topics[topic].partitions
-    except:
-        raise AllBrokersDownException
+    except KafkaException:
+        LOGGER.exception(f"Unable to list partitions in topic '{topic}'", exc_info=True)
+        raise
 
     if not partition_meta:
         raise InvalidConfigException(f"No partitions available in topic '{topic}'")
@@ -302,7 +306,7 @@ def set_partition_offsets(consumer, partitions, kafka_config, state = {}):
 
 def assign_kafka_partitions(consumer, partitions):
     """Assign and seek partitions to offsets"""
-    LOGGER.info(f"Assigning partitions '{partitions}'")
+    LOGGER.info("Assigning partitions to consumer ...")
 
     consumer.assign(partitions)
 
@@ -311,12 +315,16 @@ def assign_kafka_partitions(consumer, partitions):
         partition.offset = partition.offset - 1
 
     if all(partition.offset >= 0 for partition in partitions_committed):
-        LOGGER.info(f"Committing partitions '{partitions_committed}'")
+        LOGGER.info("Committing partitions ")
         consumer.commit(offsets=partitions_committed)
+    else:
+        LOGGER.info("Partitions not committed because one or more offsets are less than zero")
 
 
 def commit_consumer_to_bookmarked_state(consumer, topic, state):
     """Commit every bookmarked offset to kafka"""
+    LOGGER.info("Committing bookmarked offsets to kafka ...")
+
     offsets_to_commit = []
     bookmarked_partitions = state.get('bookmarks', {}).get(topic, {})
     for partition in bookmarked_partitions:
@@ -332,6 +340,9 @@ def commit_consumer_to_bookmarked_state(consumer, topic, state):
 # pylint: disable=too-many-locals,too-many-statements
 def read_kafka_messages(consumer, kafka_config, state):
     """Read kafka topic continuously and writing transformed singer messages to STDOUT"""
+
+    LOGGER.info('Starting Kafka messages consumption...')
+
     topic = kafka_config['topic']
     primary_keys = kafka_config['primary_keys']
     use_message_key = kafka_config['use_message_key']
