@@ -320,7 +320,7 @@ def assign_kafka_partitions(consumer, partitions):
 
     partitions_committed = partitions
     for partition in partitions_committed:
-        partition.offset = partition.offset - 1
+        partition.offset -= 1
 
     if all(partition.offset >= 0 for partition in partitions_committed):
         LOGGER.info("Committing partitions ")
