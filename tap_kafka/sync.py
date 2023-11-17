@@ -189,7 +189,7 @@ def consume_kafka_message(message, topic, primary_keys, use_message_key):
     singer.write_message(singer.RecordMessage(stream=topic, record=singer_record, time_extracted=utils.now()))
 
 
-def select_kafka_partitions(consumer, kafka_config) -> confluent_kafka.TopicPartition:
+def select_kafka_partitions(consumer, kafka_config) -> List[confluent_kafka.TopicPartition]:
     """Select partitions in topic"""
 
     topic = kafka_config['topic']
