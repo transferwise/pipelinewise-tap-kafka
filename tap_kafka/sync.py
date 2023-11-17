@@ -371,6 +371,9 @@ def read_kafka_messages(consumer, kafka_config, state):
 
         # Stop consuming more messages if no new message and consumer_timeout_ms exceeded
         if polled_message is None:
+            LOGGER.info('No new message received in %s ms. Stop consuming more messages.',
+                        kafka_config["consumer_timeout_ms"]
+                        )
             break
 
         message = polled_message
