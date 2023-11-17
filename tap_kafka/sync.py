@@ -111,7 +111,8 @@ def epoch_to_iso_timestamp(epoch) -> str:
 
 def init_kafka_consumer(kafka_config):
     LOGGER.info('Initialising Kafka Consumer...')
-    consumer = confluent_kafka.DeserializingConsumer({
+
+    consumer_conf = {
         # Required parameters
         'bootstrap.servers': kafka_config['bootstrap_servers'],
         'group.id': kafka_config['group_id'],
@@ -124,7 +125,15 @@ def init_kafka_consumer(kafka_config):
         # Non-configurable parameters
         'enable.auto.commit': False,
         'value.deserializer': init_value_deserializer(kafka_config),
-    })
+    }
+
+    if kafka_config['debug_contexts']:
+        # https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#debug-contexts
+        consumer_conf['debug'] = kafka_config['debug_contexts']
+
+    consumer = confluent_kafka.DeserializingConsumer(consumer_conf)
+
+    LOGGER.info('Kafka Consumer initialised successfully')
 
     return consumer
 
