@@ -12,7 +12,6 @@ from confluent_kafka import KafkaException
 from typing import List
 
 from singer import utils, metadata
-from tap_kafka.errors import AllBrokersDownException
 from tap_kafka.errors import InvalidBookmarkException
 from tap_kafka.errors import InvalidConfigException
 from tap_kafka.errors import InvalidTimestampException
