@@ -119,6 +119,7 @@ def generate_config(args_config):
         'message_format': args_config.get('message_format', DEFAULT_MESSAGE_FORMAT),
         'proto_schema': args_config.get('proto_schema', DEFAULT_PROTO_SCHEMA),
         'proto_classes_dir': args_config.get('proto_classes_dir', DEFAULT_PROTO_CLASSES_DIR),
+        'debug_contexts': args_config.get('debug_contexts'),
     }
 
     validate_config(config)

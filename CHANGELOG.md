@@ -1,3 +1,15 @@
+8.2.0 (2023-11-17)
+------------------
+- Add more info logs
+- Add new config [`debug_contexts`](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#debug-contexts) for enabling debugging
+
+8.1.0 (2023-08-25)
+------------------
+- Bump `dpath` from `2.0.6` to `2.1.*`
+- Bump `confluent-kafka[protobuf]` from `1.9.2` to `2.2.*`
+- Bump `grpcio-tools` from `1.51.1` to `1.57.*`
+- Bump test dependencies
+
 8.0.0 (2022-12-08)
 ------------------
 - Switch from `subscribe` to `assign` for better initial offset control

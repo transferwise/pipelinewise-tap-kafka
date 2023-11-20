@@ -146,6 +146,7 @@ class TestSync(unittest.TestCase):
             'partitions': tap_kafka.DEFAULT_PARTITIONS,
             'proto_classes_dir': tap_kafka.DEFAULT_PROTO_CLASSES_DIR,
             'proto_schema': tap_kafka.DEFAULT_PROTO_SCHEMA,
+            'debug_contexts': None
         })
 
     def test_generate_config_with_custom_parameters(self):
@@ -169,7 +170,8 @@ class TestSync(unittest.TestCase):
             'max_poll_interval_ms': 5555,
             'message_format': 'protobuf',
             'proto_classes_dir': '/tmp/proto-classes',
-            'proto_schema': 'proto-schema'
+            'proto_schema': 'proto-schema',
+            'debug_contexts': 'topic,cgrp'
         }
         self.assertDictEqual(tap_kafka.generate_config(custom_config), {
             'topic': 'my_topic',
@@ -190,7 +192,8 @@ class TestSync(unittest.TestCase):
             'max_poll_interval_ms': 5555,
             'message_format': 'protobuf',
             'proto_classes_dir': '/tmp/proto-classes',
-            'proto_schema': 'proto-schema'
+            'proto_schema': 'proto-schema',
+            'debug_contexts': 'topic,cgrp'
         })
 
     def test_validate_config(self):
