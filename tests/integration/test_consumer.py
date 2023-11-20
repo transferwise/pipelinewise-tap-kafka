@@ -1,16 +1,17 @@
 import unittest
 import time
-from datetime import datetime
 import singer
 
-import tap_kafka.serialization
+from confluent_kafka import KafkaException
+from datetime import datetime
 
-from tap_kafka import sync, get_args
-from tap_kafka.errors import AllBrokersDownException
+import tap_kafka.serialization
+import tests.integration.utils as test_utils
+
+from tap_kafka import sync
 from tap_kafka.errors import DiscoveryException
 from tap_kafka.errors import InvalidConfigException
 from tap_kafka.serialization.json_with_no_schema import JSONSimpleSerializer
-import tests.integration.utils as test_utils
 
 SINGER_MESSAGES = []
 
@@ -89,12 +90,12 @@ class TestKafkaConsumer(unittest.TestCase):
             'topic': topic,
             'group_id': test_utils.generate_unique_consumer_group(),
             'consumer_timeout_ms': 1000,
-            'session_timeout_ms': '1',
-            'max_poll_interval_ms': '10'
+            'session_timeout_ms': 1,
+            'max_poll_interval_ms': 10
         })
         catalog = {'streams': tap_kafka.common.generate_catalog(tap_kafka_config)}
 
-        with self.assertRaises(AllBrokersDownException):
+        with self.assertRaises(KafkaException):
             sync.do_sync(tap_kafka_config, catalog, state={'bookmarks': {topic: {}}})
 
     def test_tap_kafka_consumer(self):
