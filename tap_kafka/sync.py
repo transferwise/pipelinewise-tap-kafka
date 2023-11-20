@@ -180,7 +180,7 @@ def kafka_message_to_singer_record(message, primary_keys: dict, use_message_key:
     if primary_keys:
         for key, pk_selector in primary_keys.items():
             try:
-                record[key] = dpath.util.get(message.value(), pk_selector)
+                record[key] = dpath.get(message.value(), pk_selector)
             except KeyError:
                 raise PrimaryKeyNotFoundException(f"Custom primary key not found in the message: '{pk_selector}'")
     elif use_message_key:
