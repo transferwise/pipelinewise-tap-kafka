@@ -109,7 +109,14 @@ def epoch_to_iso_timestamp(epoch) -> str:
     return datetime.datetime.utcfromtimestamp(epoch / 1000).isoformat(timespec='milliseconds')
 
 
+def error_cb(err):
+    """Error callback for kafka consumer"""
+    LOGGER.info('An error occurred: %s', err)
+
+
 def init_kafka_consumer(kafka_config):
+    """Initialise kafka consumer"""
+
     LOGGER.info('Initialising Kafka Consumer...')
 
     consumer_conf = {
@@ -125,6 +132,7 @@ def init_kafka_consumer(kafka_config):
         # Non-configurable parameters
         'enable.auto.commit': False,
         'value.deserializer': init_value_deserializer(kafka_config),
+        'error_cb': error_cb,
     }
 
     if kafka_config['debug_contexts']:
