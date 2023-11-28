@@ -447,9 +447,10 @@ def do_sync(kafka_config, catalog, state):
         # Send the initial schema message
         send_schema_message(streams[topic_pos])
 
-        # Setup consumer
-        consumer = init_kafka_consumer(kafka_config)
+    # Setup consumer
+    consumer = init_kafka_consumer(kafka_config)
 
+    try:
         partitions = select_kafka_partitions(consumer, kafka_config)
 
         partitions = set_partition_offsets(consumer, partitions, kafka_config, state)
@@ -458,5 +459,7 @@ def do_sync(kafka_config, catalog, state):
 
         # Start consuming messages from kafka
         read_kafka_messages(consumer, kafka_config, state)
-    else:
-        raise Exception(f'Invalid catalog object. Cannot find {topic} in catalog')
+    finally:
+        # # Leave group and commit final offsets
+        LOGGER.info('Explicitly closing Kafka consumer...')
+        consumer.close()
