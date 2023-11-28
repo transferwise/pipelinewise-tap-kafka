@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='pipelinewise-tap-kafka',
-      version='8.2.0',
+      version='8.2.1',
       description='Singer.io tap for extracting data from Kafka topic - PipelineWise compatible',
       long_description=long_description,
       long_description_content_type='text/markdown',
@@ -19,7 +19,7 @@ setup(name='pipelinewise-tap-kafka',
       install_requires=[
           'pipelinewise-singer-python==2.*',
           'dpath==2.1.*',
-          'confluent-kafka[protobuf]==2.2.*',
+          'confluent-kafka[protobuf]==2.3.*',
           'grpcio-tools==1.57.*'
       ],
       extras_require={

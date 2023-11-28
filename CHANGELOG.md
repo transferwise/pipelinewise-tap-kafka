@@ -1,3 +1,11 @@
+8.2.1 (2023-11-28)
+------------------
+
+**Fixes**
+- Close kafka consumer at the end of sync
+- Commit offsets synchronously. 
+- Bump `confluent-kafka[protobuf]` from `2.2.*` to `2.3.*`
+
 8.2.0 (2023-11-17)
 ------------------
 - Add more info logs

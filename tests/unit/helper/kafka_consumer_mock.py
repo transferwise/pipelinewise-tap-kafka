@@ -74,9 +74,10 @@ class KafkaConsumerMock(object):
         if offsets:
             self.assigned_offsets = offsets
 
-    def commit(self, offsets=None):
-        if offsets:
-            self.committed_offsets = offsets
+    def commit(self, *args, **kwargs):
+
+        if 'offsets' in kwargs:
+            self.committed_offsets = kwargs['offsets']
 
     def offsets_for_times(self, topic_partitions):
         if topic_partitions[0].offset == 1638132327000:

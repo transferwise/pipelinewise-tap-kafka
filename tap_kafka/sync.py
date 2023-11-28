@@ -109,7 +109,14 @@ def epoch_to_iso_timestamp(epoch) -> str:
     return datetime.datetime.utcfromtimestamp(epoch / 1000).isoformat(timespec='milliseconds')
 
 
+def error_cb(err):
+    """Error callback for kafka consumer"""
+    LOGGER.info('An error occurred: %s', err)
+
+
 def init_kafka_consumer(kafka_config):
+    """Initialise kafka consumer"""
+
     LOGGER.info('Initialising Kafka Consumer...')
 
     consumer_conf = {
@@ -125,6 +132,7 @@ def init_kafka_consumer(kafka_config):
         # Non-configurable parameters
         'enable.auto.commit': False,
         'value.deserializer': init_value_deserializer(kafka_config),
+        'error_cb': error_cb,
     }
 
     if kafka_config['debug_contexts']:
@@ -342,7 +350,8 @@ def commit_consumer_to_bookmarked_state(consumer, topic, state):
                                                          bookmarked_partition['offset'])
         offsets_to_commit.append(topic_partition)
 
-    consumer.commit(offsets=offsets_to_commit)
+    consumer.commit(offsets=offsets_to_commit, asynchronous=False)
+
     LOGGER.info("Bookmarked offsets committed")
 
 
@@ -435,13 +444,16 @@ def do_sync(kafka_config, catalog, state):
     streams = catalog.get('streams', [])
     topic_pos = search_in_list_of_dict_by_key_value(streams, 'tap_stream_id', topic)
 
-    if topic_pos != -1:
-        # Send the initial schema message
-        send_schema_message(streams[topic_pos])
+    if topic_pos == -1:
+        raise Exception(f'Invalid catalog object. Cannot find {topic} in catalog')
 
-        # Setup consumer
-        consumer = init_kafka_consumer(kafka_config)
+    # Send the initial schema message
+    send_schema_message(streams[topic_pos])
 
+    # Setup consumer
+    consumer = init_kafka_consumer(kafka_config)
+
+    try:
         partitions = select_kafka_partitions(consumer, kafka_config)
 
         partitions = set_partition_offsets(consumer, partitions, kafka_config, state)
@@ -450,5 +462,7 @@ def do_sync(kafka_config, catalog, state):
 
         # Start consuming messages from kafka
         read_kafka_messages(consumer, kafka_config, state)
-    else:
-        raise Exception(f'Invalid catalog object. Cannot find {topic} in catalog')
+    finally:
+        # # Leave group and commit final offsets
+        LOGGER.info('Explicitly closing Kafka consumer...')
+        consumer.close()
