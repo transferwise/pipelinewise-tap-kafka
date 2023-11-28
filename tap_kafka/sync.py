@@ -350,7 +350,7 @@ def commit_consumer_to_bookmarked_state(consumer, topic, state):
                                                          bookmarked_partition['offset'])
         offsets_to_commit.append(topic_partition)
 
-    consumer.commit(offsets=offsets_to_commit)
+    consumer.commit(offsets=offsets_to_commit, asynchronous=False)
     LOGGER.info("Bookmarked offsets committed")
 
 
