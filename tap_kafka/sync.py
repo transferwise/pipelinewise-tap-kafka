@@ -443,9 +443,11 @@ def do_sync(kafka_config, catalog, state):
     streams = catalog.get('streams', [])
     topic_pos = search_in_list_of_dict_by_key_value(streams, 'tap_stream_id', topic)
 
-    if topic_pos != -1:
-        # Send the initial schema message
-        send_schema_message(streams[topic_pos])
+    if topic_pos == -1:
+        raise Exception(f'Invalid catalog object. Cannot find {topic} in catalog')
+
+    # Send the initial schema message
+    send_schema_message(streams[topic_pos])
 
     # Setup consumer
     consumer = init_kafka_consumer(kafka_config)
