@@ -135,6 +135,12 @@ def init_kafka_consumer(kafka_config):
         'error_cb': error_cb,
     }
 
+    if kafka_config.get('sasl_username') and kafka_config.get('sasl_password'):
+        consumer_conf['security.protocol'] = 'SASL_SSL'
+        consumer_conf['sasl.mechanisms'] = 'PLAIN'
+        consumer_conf['sasl.username'] = kafka_config['sasl_username']
+        consumer_conf['sasl.password'] = kafka_config['sasl_password']
+
     if kafka_config['debug_contexts']:
         # https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#debug-contexts
         consumer_conf['debug'] = kafka_config['debug_contexts']
