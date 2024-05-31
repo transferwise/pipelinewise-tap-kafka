@@ -42,11 +42,20 @@ def dump_catalog(all_streams):
 def do_discovery(config):
     """Discover kafka topic by trying to connect to the topic and generate singer schema
     according to the config"""
-    consumer = Consumer({
+
+    consumer_conf = {
         'bootstrap.servers': config['bootstrap_servers'],
         'group.id': config['group_id'],
         'auto.offset.reset': 'earliest',
-    })
+    }
+
+    if config.get('sasl_username') and config.get('sasl_password'):
+        consumer_conf['security.protocol'] = 'SASL_SSL'
+        consumer_conf['sasl.mechanisms'] = 'PLAIN'
+        consumer_conf['sasl.username'] = config['sasl_username']
+        consumer_conf['sasl.password'] = config['sasl_password']
+
+    consumer = Consumer(consumer_conf)
 
     try:
         topic = config['topic']
