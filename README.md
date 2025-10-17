@@ -158,3 +158,39 @@ The tap will write bookmarks to stdout which can be captured and passed as an op
   pip install -e .[test]
   pylint tap_kafka -d C,W,unexpected-keyword-arg,duplicate-code
 ```
+
+# Using local dev container
+
+## Create local dev container
+```
+docker run --name pipelinewise-tap-kafka -it --entrypoint bash -v ${pwd}:/project python:3.9-slim
+cd project/
+pip install pipelinewise-tap-kafka
+pip install --upgrade pip
+pip install -e .[test]
+pip install .
+```
+
+## Start local dev container (after it exists/is created)
+```
+# start and attach
+docker start pipelinewise-tap-kafka -a
+
+# or attach (if its already running)
+docker attach pipelinewise-tap-kafka
+```
+
+## Run the thing from in local dev container
+```
+cd project/
+
+# dump a Catalog to stdout
+tap-kafka --config config.json --discover
+
+# Capture the Catalog to file
+tap-kafka --config config.json --discover > catalog.json
+
+# run sync
+tap-kafka --config config.json --properties catalog.json
+tap-kafka --config config.json --properties catalog.json --state state.json
+```

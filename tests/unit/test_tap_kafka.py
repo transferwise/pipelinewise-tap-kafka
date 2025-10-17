@@ -590,7 +590,7 @@ class TestSync(unittest.TestCase):
                                            offset=111,
                                            partition=1)
 
-        self.assertDictEqual(sync.update_bookmark(input_state, topic, message, comment=True), {'bookmarks': {'test-topic-updated': {
+        self.assertDictEqual(sync.update_bookmark(input_state, topic, message, comment='order of precedence : offset, timestamp, start_time; only one will be used'), {'bookmarks': {'test-topic-updated': {
                                 'partition_0': {
                                     'partition': 0,
                                     'offset': 1234,
